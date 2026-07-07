@@ -99,7 +99,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
     fun saveMeta(updated: RecordingMeta) {
         meta = updated
         entry.metaUri?.let { uri ->
-            scope.launch(metaWriter) { repo.writeMeta(uri, updated) }
+            scope.launch(metaWriter) { runCatching { repo.writeMeta(uri, updated) } }
         }
     }
     fun setLabel(index: Int, label: String, type: String) {
