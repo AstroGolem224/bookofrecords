@@ -9,11 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.claymachinegames.bookofrecords.data.RecordingEntry
 import com.claymachinegames.bookofrecords.data.RecordingRepository
+import com.claymachinegames.bookofrecords.ui.BorTheme
 import com.claymachinegames.bookofrecords.ui.DetailScreen
 import com.claymachinegames.bookofrecords.ui.LibraryScreen
 import com.claymachinegames.bookofrecords.ui.RecordScreen
@@ -37,11 +34,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(
-                colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme(),
-            ) {
-                Surface { App() }
-            }
+            BorTheme { Surface { App() } }
         }
     }
 }
