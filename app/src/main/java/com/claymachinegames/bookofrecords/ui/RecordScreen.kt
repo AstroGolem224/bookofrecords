@@ -49,7 +49,11 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit) {
     val context = LocalContext.current
     val state by RecorderState.state.collectAsState()
     fun send(action: String) {
-        context.startForegroundService(RecorderService.intent(context, action))
+        val intent = RecorderService.intent(context, action)
+        // Nur START braucht startForegroundService; alle anderen Actions per startService,
+        // sonst entsteht eine startForeground-Verpflichtung, die ein Idle-Service nicht einlöst
+        if (action == RecorderService.ACTION_START) context.startForegroundService(intent)
+        else context.startService(intent)
     }
 
     Column(
@@ -84,7 +88,7 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit) {
                 LaunchedEffect(titleText) {
                     if (titleText != s.title) {
                         delay(400)   // debounce → Service
-                        context.startForegroundService(
+                        context.startService(
                             RecorderService.intent(context, RecorderService.ACTION_SET_TITLE)
                                 .putExtra(RecorderService.EXTRA_TITLE, titleText))
                     }
@@ -117,7 +121,7 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit) {
                     OutlinedButton(
                         onClick = {
                             // Titel mitschicken: schlägt 400ms-Debounce bei schnellem Stop
-                            context.startForegroundService(
+                            context.startService(
                                 RecorderService.intent(context, RecorderService.ACTION_STOP)
                                     .putExtra(RecorderService.EXTRA_TITLE, titleText))
                         },

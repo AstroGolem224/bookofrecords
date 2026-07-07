@@ -108,9 +108,18 @@ class RecorderService : Service() {
                 publishState()
             }
         }
-        // startForegroundService-Vertrag: läuft danach nichts, Service sofort beenden,
-        // sonst ForegroundServiceDidNotStartInTimeException nach ~10s
+        // startForegroundService-Vertrag: stopSelf() allein löst die Verpflichtung auf
+        // API 31+ NICHT ein (ForegroundServiceDidNotStartInTimeException, im Emulator-Smoke
+        // reproduziert) — einmal startForeground aufrufen, dann sofort beenden.
+        // UI schickt Nicht-START-Actions per startService (keine Verpflichtung); dieser
+        // Pfad greift bei Fremd-Callern (adb, künftige Widgets).
         if (!clock.running) {
+            runCatching {
+                ServiceCompat.startForeground(
+                    this, NOTIF_ID, buildNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                )
+            }
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
