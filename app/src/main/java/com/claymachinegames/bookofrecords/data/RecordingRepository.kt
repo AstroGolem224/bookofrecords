@@ -60,6 +60,12 @@ class RecordingRepository(private val context: Context) {
         resolver.openOutputStream(metaUri, "wt")!!.use { it.write(meta.toJson().toByteArray()) }
     }
 
+    /** Rollback helper: remove both rows of a recording that never became valid. */
+    fun discard(files: RecordingFiles) {
+        runCatching { resolver.delete(files.audioUri, null, null) }
+        runCatching { resolver.delete(files.metaUri, null, null) }
+    }
+
     fun readMeta(metaUri: Uri): RecordingMeta? = runCatching {
         resolver.openInputStream(metaUri)!!.use {
             RecordingMeta.fromJson(it.readBytes().decodeToString())

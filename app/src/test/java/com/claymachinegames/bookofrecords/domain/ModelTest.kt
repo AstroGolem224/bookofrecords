@@ -37,7 +37,7 @@ class ModelTest {
 
     @Test
     fun defaultBaseNameFormat() {
-        assertEquals("2026-07-07_1930", defaultBaseName(LocalDateTime.of(2026, 7, 7, 19, 30)))
+        assertEquals("2026-07-07_193000", defaultBaseName(LocalDateTime.of(2026, 7, 7, 19, 30)))
     }
 
     @Test

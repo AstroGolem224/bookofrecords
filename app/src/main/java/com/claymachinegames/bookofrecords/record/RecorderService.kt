@@ -62,6 +62,7 @@ class RecorderService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var ticker: Job? = null
+    private var previousExceptionHandler: Thread.UncaughtExceptionHandler? = null
 
     // Akku leer → System-Shutdown: Recorder sauber stoppen, sonst fehlt das moov-Atom
     private val shutdownReceiver = object : BroadcastReceiver() {
@@ -76,10 +77,10 @@ class RecorderService : Service() {
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Aufnahme", NotificationManager.IMPORTANCE_LOW)
         )
-        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        previousExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             runCatching { stopRecording() }   // eigene Crashes: Datei noch finalisieren
-            previous?.uncaughtException(t, e)
+            previousExceptionHandler?.uncaughtException(t, e)
         }
     }
 
@@ -91,46 +92,64 @@ class RecorderService : Service() {
             ACTION_MARKER -> addMarker()
             ACTION_STOP -> stopRecording()
         }
+        // startForegroundService-Vertrag: läuft danach nichts, Service sofort beenden,
+        // sonst ForegroundServiceDidNotStartInTimeException nach ~10s
+        if (!clock.running) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
         return START_NOT_STICKY
     }
 
     private fun startRecording() {
         if (clock.running) return
-        val baseName = defaultBaseName(LocalDateTime.now())
-        val f = repo.createRecording(baseName).also { files = it }
-        val pfd = repo.openAudioForWrite(f.audioUri).also { fd = it }
-
-        recorder = (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this)
-                    else @Suppress("DEPRECATION") MediaRecorder()).apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setAudioChannels(1)
-            setAudioSamplingRate(44_100)
-            setAudioEncodingBitRate(96_000)
-            setOutputFile(pfd.fileDescriptor)
-            prepare()
-            start()
-        }
-
-        wakeLock = getSystemService(PowerManager::class.java)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bookofrecords:recording")
-            .apply { acquire(5 * 60 * 60 * 1000L) }   // 5h Obergrenze
-
-        meta = RecordingMeta(
-            file = "$baseName.m4a",
-            startedAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-        )
-        repo.writeMeta(f.metaUri, meta!!)
-        paused = false
-        clock.start()
-
+        // startForeground zuerst: muss auch bei fehlschlagendem Setup innerhalb der Frist passieren
         ServiceCompat.startForeground(
             this, NOTIF_ID, buildNotification(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
         )
-        ticker = scope.launch {
-            while (true) { publishState(); delay(1000) }
+        try {
+            val baseName = defaultBaseName(LocalDateTime.now())
+            val f = repo.createRecording(baseName).also { files = it }
+            val pfd = repo.openAudioForWrite(f.audioUri).also { fd = it }
+
+            recorder = (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(this)
+                        else @Suppress("DEPRECATION") MediaRecorder()).apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioChannels(1)
+                setAudioSamplingRate(44_100)
+                setAudioEncodingBitRate(96_000)
+                setOutputFile(pfd.fileDescriptor)
+                prepare()
+                start()
+            }
+
+            wakeLock = getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "bookofrecords:recording")
+                .apply { acquire(5 * 60 * 60 * 1000L) }   // 5h Obergrenze
+
+            meta = RecordingMeta(
+                file = "$baseName.m4a",
+                startedAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+            )
+            repo.writeMeta(f.metaUri, meta!!)
+            paused = false
+            clock.start()
+
+            ticker = scope.launch {
+                while (true) { publishState(); updateNotification(); delay(1000) }
+            }
+        } catch (e: Exception) {
+            // Rollback: nichts Halbfertiges zurücklassen (Recorder, fd, MediaStore-Zeilen)
+            runCatching { recorder?.release() }; recorder = null
+            runCatching { fd?.close() }; fd = null
+            wakeLock?.let { if (it.isHeld) it.release() }; wakeLock = null
+            files?.let { repo.discard(it) }
+            files = null; meta = null
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf()
         }
     }
 
@@ -156,7 +175,7 @@ class RecorderService : Service() {
         val m = meta ?: return
         if (!clock.running) return
         meta = m.copy(markers = m.markers + Marker(timeMs = clock.elapsedMs()))
-        files?.let { repo.writeMeta(it.metaUri, meta!!) }   // inkrementell: Crash verliert 0 Marker
+        files?.let { runCatching { repo.writeMeta(it.metaUri, meta!!) } }   // inkrementell: Crash verliert 0 Marker
         updateNotification()
         publishState()
     }
@@ -164,14 +183,20 @@ class RecorderService : Service() {
     private fun stopRecording() {
         if (!clock.running) return
         ticker?.cancel()
-        runCatching { recorder?.stop() }
+        val stopped = runCatching { recorder?.stop() }.isSuccess
         recorder?.release(); recorder = null
         meta = meta?.copy(durationMs = clock.elapsedMs())
         clock.stop()
         files?.let { f ->
-            meta?.let { repo.writeMeta(f.metaUri, it) }
-            runCatching { fd?.close() }
-            repo.publish(f.audioUri)
+            if (stopped) {
+                meta?.let { runCatching { repo.writeMeta(f.metaUri, it) } }
+                runCatching { fd?.close() }
+                repo.publish(f.audioUri)
+            } else {
+                // stop() warf → keine gültigen Samples, moov fehlt: nicht publishen, aufräumen
+                runCatching { fd?.close() }
+                repo.discard(f)
+            }
         }
         fd = null; files = null
         wakeLock?.let { if (it.isHeld) it.release() }
@@ -220,9 +245,10 @@ class RecorderService : Service() {
     }
 
     override fun onDestroy() {
-        stopRecording()
+        runCatching { stopRecording() }   // Receiver/Scope-Cleanup darf nie ausfallen
         unregisterReceiver(shutdownReceiver)
         scope.cancel()
+        Thread.setDefaultUncaughtExceptionHandler(previousExceptionHandler)
         super.onDestroy()
     }
 

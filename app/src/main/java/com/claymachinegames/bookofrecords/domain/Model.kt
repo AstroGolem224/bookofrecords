@@ -40,7 +40,7 @@ data class RecordingMeta(
 }
 
 fun defaultBaseName(now: LocalDateTime): String =
-    now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm"))
+    now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss"))
 
 fun formatMs(ms: Long): String {
     val total = ms / 1000
