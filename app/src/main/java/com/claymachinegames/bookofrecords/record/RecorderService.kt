@@ -103,12 +103,12 @@ class RecorderService : Service() {
 
     private fun startRecording() {
         if (clock.running) return
-        // startForeground zuerst: muss auch bei fehlschlagendem Setup innerhalb der Frist passieren
-        ServiceCompat.startForeground(
-            this, NOTIF_ID, buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-        )
         try {
+            // startForeground zuerst: muss auch bei fehlschlagendem Setup innerhalb der Frist passieren
+            ServiceCompat.startForeground(
+                this, NOTIF_ID, buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+            )
             val baseName = defaultBaseName(LocalDateTime.now())
             val f = repo.createRecording(baseName).also { files = it }
             val pfd = repo.openAudioForWrite(f.audioUri).also { fd = it }
@@ -191,7 +191,7 @@ class RecorderService : Service() {
             if (stopped) {
                 meta?.let { runCatching { repo.writeMeta(f.metaUri, it) } }
                 runCatching { fd?.close() }
-                repo.publish(f.audioUri)
+                runCatching { repo.publish(f.audioUri) }
             } else {
                 // stop() warf → keine gültigen Samples, moov fehlt: nicht publishen, aufräumen
                 runCatching { fd?.close() }
