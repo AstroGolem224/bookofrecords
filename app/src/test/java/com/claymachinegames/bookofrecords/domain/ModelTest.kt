@@ -36,14 +36,46 @@ class ModelTest {
     }
 
     @Test
-    fun defaultBaseNameFormat() {
-        assertEquals("2026-07-07_193000", defaultBaseName(LocalDateTime.of(2026, 7, 7, 19, 30)))
-    }
-
-    @Test
     fun formatMsShowsHoursOnlyWhenNeeded() {
         assertEquals("00:05", formatMs(5_000))
         assertEquals("12:34", formatMs(754_000))
         assertEquals("1:30:23", formatMs(5_423_000))
+    }
+
+    @Test
+    fun sanitizeTitleStripsIllegalCharsAndTrims() {
+        assertEquals("Session 43", sanitizeTitle("  Ses/si\\on: *43?\"<>|  "))
+        assertEquals("", sanitizeTitle("///"))
+        assertEquals("a".repeat(60), sanitizeTitle("a".repeat(80)))
+    }
+
+    @Test
+    fun recordingBaseNameWithAndWithoutTitle() {
+        val start = LocalDateTime.of(2026, 7, 8, 19, 30)
+        assertEquals("2026-07-08_19-30_BoR_Session 43", recordingBaseName(start, "Session 43"))
+        assertEquals("2026-07-08_19-30_BoR", recordingBaseName(start, ""))
+        assertEquals("2026-07-08_19-30_BoR", recordingBaseName(start, "  /// "))
+    }
+
+    @Test
+    fun dateFolderFormat() {
+        assertEquals("2026-07-08", dateFolder(LocalDateTime.of(2026, 7, 8, 19, 30)))
+    }
+
+    @Test
+    fun levelFractionNormalizesLogarithmically() {
+        assertEquals(0f, levelFraction(0), 0.001f)
+        assertEquals(1f, levelFraction(32767), 0.001f)
+        assertEquals(0.279f, levelFraction(3277), 0.01f)
+        assertEquals(0f, levelFraction(-5), 0.001f)
+    }
+
+    @Test
+    fun titlePartRoundtrip() {
+        assertEquals("Session 43", titlePartOf("2026-07-08_19-30_BoR_Session 43"))
+        assertEquals("", titlePartOf("2026-07-08_19-30_BoR"))
+        assertEquals(null, titlePartOf("2026-07-07_155810"))
+        assertEquals("2026-07-08_19-30_BoR_Neu", withTitle("2026-07-08_19-30_BoR_Session 43", "Neu"))
+        assertEquals("2026-07-08_19-30_BoR", withTitle("2026-07-08_19-30_BoR_Session 43", ""))
     }
 }

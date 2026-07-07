@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.log10
 
 @Serializable
 data class Marker(
@@ -39,8 +40,39 @@ data class RecordingMeta(
     }
 }
 
-fun defaultBaseName(now: LocalDateTime): String =
-    now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss"))
+private val illegalFileChars = Regex("""[/\\:*?"<>|\p{Cntrl}]""")
+
+fun sanitizeTitle(raw: String): String =
+    raw.replace(illegalFileChars, "").trim().replace(Regex("\\s+"), " ").take(60).trim()
+
+fun dateFolder(start: LocalDateTime): String =
+    start.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+
+/** YYYY-MM-DD_HH-MM_BoR_<titel>; ohne Suffix wenn Titel leer. */
+fun recordingBaseName(start: LocalDateTime, title: String): String {
+    val prefix = start.format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm")) + "_BoR"
+    val t = sanitizeTitle(title)
+    return if (t.isEmpty()) prefix else "${prefix}_$t"
+}
+
+/** Titel-Teil eines Basisnamens; null wenn kein BoR-Namensschema (Altbestand). */
+fun titlePartOf(base: String): String? {
+    val idx = base.indexOf("_BoR")
+    if (idx < 0) return null
+    return base.substringAfter("_BoR").removePrefix("_")
+}
+
+fun withTitle(base: String, newTitle: String): String {
+    val prefix = base.substringBefore("_BoR") + "_BoR"
+    val t = sanitizeTitle(newTitle)
+    return if (t.isEmpty()) prefix else "${prefix}_$t"
+}
+
+/** MediaRecorder.getMaxAmplitude (0..32767) → 0..1, logarithmisch skaliert. */
+fun levelFraction(maxAmplitude: Int): Float {
+    val x = (maxAmplitude.coerceIn(0, 32767)) / 32767.0
+    return log10(1.0 + 9.0 * x).toFloat()
+}
 
 fun formatMs(ms: Long): String {
     val total = ms / 1000

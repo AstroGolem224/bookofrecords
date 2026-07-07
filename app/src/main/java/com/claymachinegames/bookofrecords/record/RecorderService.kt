@@ -25,7 +25,7 @@ import com.claymachinegames.bookofrecords.data.RecordingRepository
 import com.claymachinegames.bookofrecords.domain.Marker
 import com.claymachinegames.bookofrecords.domain.MarkerClock
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
-import com.claymachinegames.bookofrecords.domain.defaultBaseName
+import com.claymachinegames.bookofrecords.domain.recordingBaseName
 import com.claymachinegames.bookofrecords.domain.formatMs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +58,7 @@ class RecorderService : Service() {
     private var files: RecordingFiles? = null
     private var fd: ParcelFileDescriptor? = null
     private var meta: RecordingMeta? = null
+    private var startedLocal: LocalDateTime? = null
     private var paused = false
     private val clock = MarkerClock(SystemClock::elapsedRealtime)
     private var wakeLock: PowerManager.WakeLock? = null
@@ -110,7 +111,8 @@ class RecorderService : Service() {
                 this, NOTIF_ID, buildNotification(),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
             )
-            val baseName = defaultBaseName(LocalDateTime.now())
+            startedLocal = LocalDateTime.now()
+            val baseName = recordingBaseName(startedLocal!!, "")
             val f = repo.createRecording(baseName).also { files = it }
             val pfd = repo.openAudioForWrite(f.audioUri).also { fd = it }
 
