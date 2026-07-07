@@ -55,15 +55,18 @@ fun recordingBaseName(start: LocalDateTime, title: String): String {
     return if (t.isEmpty()) prefix else "${prefix}_$t"
 }
 
+private val borMarker = Regex("""_BoR(_|$)""")
+
 /** Titel-Teil eines Basisnamens; null wenn kein BoR-Namensschema (Altbestand). */
 fun titlePartOf(base: String): String? {
-    val idx = base.indexOf("_BoR")
-    if (idx < 0) return null
-    return base.substringAfter("_BoR").removePrefix("_")
+    val m = borMarker.find(base) ?: return null
+    return base.substring(m.range.first + 4).removePrefix("_")
 }
 
 fun withTitle(base: String, newTitle: String): String {
-    val prefix = base.substringBefore("_BoR") + "_BoR"
+    val m = borMarker.find(base)
+    val prefix = if (m != null) base.substring(0, m.range.first) + "_BoR"
+                 else base + "_BoR"
     val t = sanitizeTitle(newTitle)
     return if (t.isEmpty()) prefix else "${prefix}_$t"
 }

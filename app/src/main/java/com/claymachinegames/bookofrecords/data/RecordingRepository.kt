@@ -9,7 +9,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 
-class RecordingFiles(val audioUri: Uri, val metaUri: Uri)
+class RecordingFiles(val audioUri: Uri, val metaUri: Uri, val actualBase: String)
 
 data class RecordingEntry(
     val audioUri: Uri,
@@ -32,10 +32,15 @@ class RecordingRepository(private val context: Context) {
 
     // --- create / write ---
 
-    fun createRecording(baseName: String, dateFolder: String): RecordingFiles = RecordingFiles(
-        audioUri = insert("$baseName.m4a", "audio/mp4", "$RELATIVE_PATH$dateFolder/", pending = true),
-        metaUri = insert("$baseName.json", "application/json", "$RELATIVE_PATH$dateFolder/", pending = false),
-    )
+    fun createRecording(baseName: String, dateFolder: String): RecordingFiles {
+        val audioUri = insert("$baseName.m4a", "audio/mp4", "$RELATIVE_PATH$dateFolder/", pending = true)
+        val actualBase = resolver.query(audioUri,
+            arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0)?.removeSuffix(".m4a") else null
+        } ?: baseName
+        val metaUri = insert("$actualBase.json", "application/json", "$RELATIVE_PATH$dateFolder/", pending = false)
+        return RecordingFiles(audioUri, metaUri, actualBase)
+    }
 
     private fun insert(displayName: String, mime: String, relativePath: String, pending: Boolean): Uri {
         val values = ContentValues().apply {
@@ -142,13 +147,22 @@ class RecordingRepository(private val context: Context) {
     }
 
     /** Rename both files of an in-flight recording (finalize title on stop). */
-    fun renameFiles(files: RecordingFiles, newBase: String) {
+    fun renameFiles(files: RecordingFiles, oldBase: String, newBase: String) {
         resolver.update(files.audioUri, ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "$newBase.m4a")
         }, null, null)
-        resolver.update(files.metaUri, ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "$newBase.json")
-        }, null, null)
+        try {
+            resolver.update(files.metaUri, ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "$newBase.json")
+            }, null, null)
+        } catch (e: Exception) {
+            runCatching {   // Paar konsistent halten: Audio-Rename zurückdrehen
+                resolver.update(files.audioUri, ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "$oldBase.m4a")
+                }, null, null)
+            }
+            throw e
+        }
     }
 
     fun delete(entry: RecordingEntry) {

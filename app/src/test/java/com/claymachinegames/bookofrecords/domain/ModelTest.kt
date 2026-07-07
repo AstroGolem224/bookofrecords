@@ -78,4 +78,10 @@ class ModelTest {
         assertEquals("2026-07-08_19-30_BoR_Neu", withTitle("2026-07-08_19-30_BoR_Session 43", "Neu"))
         assertEquals("2026-07-08_19-30_BoR", withTitle("2026-07-08_19-30_BoR_Session 43", ""))
     }
+
+    @Test
+    fun borMarkerNeedsBoundary() {
+        assertEquals(null, titlePartOf("my_BoRing_song"))
+        assertEquals("mix", titlePartOf("2026-07-08_19-30_BoR_mix"))
+    }
 }

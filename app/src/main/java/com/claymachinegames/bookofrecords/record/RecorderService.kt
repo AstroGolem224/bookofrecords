@@ -99,7 +99,10 @@ class RecorderService : Service() {
             ACTION_PAUSE -> pauseRecording()
             ACTION_RESUME -> resumeRecording()
             ACTION_MARKER -> addMarker()
-            ACTION_STOP -> stopRecording()
+            ACTION_STOP -> {
+                intent.getStringExtra(EXTRA_TITLE)?.let { title = sanitizeTitle(it) }
+                stopRecording()
+            }
             ACTION_SET_TITLE -> {
                 title = sanitizeTitle(intent.getStringExtra(EXTRA_TITLE) ?: "")
                 publishState()
@@ -145,7 +148,7 @@ class RecorderService : Service() {
                 .apply { acquire(5 * 60 * 60 * 1000L) }   // 5h Obergrenze
 
             meta = RecordingMeta(
-                file = "$baseName.m4a",
+                file = "${f.actualBase}.m4a",
                 startedAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             )
             repo.writeMeta(f.metaUri, meta!!)
@@ -217,7 +220,7 @@ class RecorderService : Service() {
                 val finalBase = recordingBaseName(startedLocal ?: LocalDateTime.now(), title)
                 val currentBase = meta?.file?.removeSuffix(".m4a")
                 if (currentBase != null && finalBase != currentBase) {
-                    runCatching { repo.renameFiles(f, finalBase) }
+                    runCatching { repo.renameFiles(f, currentBase, finalBase) }
                         .onSuccess { meta = meta?.copy(file = "$finalBase.m4a") }
                 }
                 meta?.let { runCatching { repo.writeMeta(f.metaUri, it) } }
