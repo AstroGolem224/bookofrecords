@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.claymachinegames.bookofrecords.MainActivity
@@ -142,6 +143,7 @@ class RecorderService : Service() {
                 while (true) { publishState(); updateNotification(); delay(1000) }
             }
         } catch (e: Exception) {
+            Toast.makeText(this, "Aufnahme konnte nicht gestartet werden", Toast.LENGTH_LONG).show()
             // Rollback: nichts Halbfertiges zurücklassen (Recorder, fd, MediaStore-Zeilen)
             runCatching { recorder?.release() }; recorder = null
             runCatching { fd?.close() }; fd = null

@@ -84,6 +84,7 @@ class RecordingRepository(private val context: Context) {
             MediaStore.MediaColumns.DISPLAY_NAME,
             MediaStore.MediaColumns.DATE_ADDED,
         )
+        // ponytail: sieht nur eigene MediaStore-Beiträge — nach Reinstall ist die Library leer, Dateien bleiben auf Disk
         resolver.query(
             filesUri, projection,
             "${MediaStore.MediaColumns.RELATIVE_PATH}=?", arrayOf(RELATIVE_PATH), null,

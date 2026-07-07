@@ -46,6 +46,7 @@ import com.claymachinegames.bookofrecords.data.RecordingRepository
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.formatMs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,20 +64,34 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
     var showRename by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf(entry.baseName) }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val metaWriter = remember { Dispatchers.IO.limitedParallelism(1) }
+
     val player = remember {
-        MediaPlayer().apply {
-            setDataSource(context, entry.audioUri)
-            prepare()
-            setOnCompletionListener { playing = false }
+        runCatching {
+            MediaPlayer().apply {
+                setDataSource(context, entry.audioUri)
+                prepare()
+                setOnCompletionListener { playing = false }
+            }
+        }.getOrNull()
+    }
+    DisposableEffect(Unit) { onDispose { player?.release() } }
+    LaunchedEffect(player) {
+        if (player == null) {
+            Toast.makeText(context, "Datei nicht lesbar", Toast.LENGTH_SHORT).show()
+            onClose()
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release() } }
 
     LaunchedEffect(Unit) {
         meta = withContext(Dispatchers.IO) { entry.metaUri?.let { repo.readMeta(it) } }
             ?: RecordingMeta(file = "${entry.baseName}.m4a", startedAt = "",
                              durationMs = entry.durationMs)
     }
+
+    if (player == null) return
+
     LaunchedEffect(playing) {
         while (playing) { positionMs = player.currentPosition; delay(250) }
     }
@@ -84,7 +99,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
     fun saveMeta(updated: RecordingMeta) {
         meta = updated
         entry.metaUri?.let { uri ->
-            scope.launch(Dispatchers.IO) { repo.writeMeta(uri, updated) }
+            scope.launch(metaWriter) { repo.writeMeta(uri, updated) }
         }
     }
     fun setLabel(index: Int, label: String, type: String) {
@@ -206,8 +221,9 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
             text = { Text(entry.baseName) },
             confirmButton = {
                 TextButton(onClick = {
+                    playing = false
                     player.release()
-                    scope.launch(Dispatchers.IO) { repo.delete(entry) }
+                    repo.delete(entry)
                     onClose()
                 }) { Text("Löschen") }
             },
@@ -226,7 +242,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
                 TextButton(onClick = {
                     val newBase = renameText.trim()
                     if (newBase.isNotEmpty() && newBase != entry.baseName) {
-                        scope.launch(Dispatchers.IO) { repo.rename(entry, newBase) }
+                        repo.rename(entry, newBase)
                     }
                     showRename = false
                     onClose()   // zurück zur Library, die neu lädt
