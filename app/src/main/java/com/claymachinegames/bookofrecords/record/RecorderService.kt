@@ -175,7 +175,7 @@ class RecorderService : Service() {
 
     private fun addMarker() {
         val m = meta ?: return
-        if (!clock.running) return
+        if (!clock.running || paused) return   // konsistent mit UI: kein Marker während Pause
         meta = m.copy(markers = m.markers + Marker(timeMs = clock.elapsedMs()))
         files?.let { runCatching { repo.writeMeta(it.metaUri, meta!!) } }   // inkrementell: Crash verliert 0 Marker
         updateNotification()

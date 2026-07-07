@@ -1657,14 +1657,7 @@ Expected: BUILD SUCCESSFUL, all unit tests green.
 git push -u origin main
 ```
 
-- [ ] **Step 5: Close PMTool task**
-
-```bash
-# Implementation task → Done column (IDs from PMTool project BookofRecords)
-curl -s -X PATCH http://100.115.61.30:8000/api/tasks/<IMPL_TASK_ID>/move \
-  -H "Content-Type: application/json" \
-  -d '{"column_id": "7727db84-2657-4942-aeb0-dbf85c456552", "position": 0}'
-```
+- [ ] **Step 5: Close the tracking task in the internal PM tool**
 
 ---
 
@@ -1675,8 +1668,7 @@ transcription, tags, MP3 export, segment rotation (`setNextOutputFile`) —
 upgrade path documented in design doc if m4a corruption ever shows up in
 practice.
 
-## PMTool
+## Tracking
 
-- Project `d13003ba-3e7e-4308-b302-d31cc0fadee4`
-- Columns: backlog `14c43bbd…`, in_progress `1b03c922…`, review `5240fc03…`, done `7727db84-2657-4942-aeb0-dbf85c456552`
-- Create one implementation task when execution starts; move to done in Task 10 Step 5.
+Tracked in the internal PM tool (project BookofRecords); one implementation
+task per execution run, closed in Task 10 Step 5.

@@ -242,7 +242,9 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
                 TextButton(onClick = {
                     val newBase = renameText.trim()
                     if (newBase.isNotEmpty() && newBase != entry.baseName) {
-                        repo.rename(entry, newBase)
+                        runCatching { repo.rename(entry, newBase) }.onFailure {
+                            Toast.makeText(context, "Umbenennen fehlgeschlagen", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     showRename = false
                     onClose()   // zurück zur Library, die neu lädt
