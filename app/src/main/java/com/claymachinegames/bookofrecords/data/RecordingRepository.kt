@@ -18,6 +18,7 @@ data class RecordingEntry(
     val addedAtEpochSec: Long,
     val durationMs: Long,
     val markerCount: Int,
+    val dateGroup: String,     // "2026-07-08" — aus Ordnername, Fallback DATE_ADDED
 )
 
 class RecordingRepository(private val context: Context) {
@@ -31,16 +32,16 @@ class RecordingRepository(private val context: Context) {
 
     // --- create / write ---
 
-    fun createRecording(baseName: String): RecordingFiles = RecordingFiles(
-        audioUri = insert("$baseName.m4a", "audio/mp4", pending = true),
-        metaUri = insert("$baseName.json", "application/json", pending = false),
+    fun createRecording(baseName: String, dateFolder: String): RecordingFiles = RecordingFiles(
+        audioUri = insert("$baseName.m4a", "audio/mp4", "$RELATIVE_PATH$dateFolder/", pending = true),
+        metaUri = insert("$baseName.json", "application/json", "$RELATIVE_PATH$dateFolder/", pending = false),
     )
 
-    private fun insert(displayName: String, mime: String, pending: Boolean): Uri {
+    private fun insert(displayName: String, mime: String, relativePath: String, pending: Boolean): Uri {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, RELATIVE_PATH)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
             if (pending) put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         return resolver.insert(filesUri, values) ?: error("MediaStore insert failed: $displayName")
@@ -75,7 +76,7 @@ class RecordingRepository(private val context: Context) {
     // --- list ---
 
     fun list(): List<RecordingEntry> {
-        data class Row(val uri: Uri, val name: String, val added: Long)
+        data class Row(val uri: Uri, val name: String, val added: Long, val relPath: String)
         val audio = mutableListOf<Row>()
         val metaByBase = mutableMapOf<String, Uri>()
 
@@ -83,25 +84,29 @@ class RecordingRepository(private val context: Context) {
             MediaStore.MediaColumns._ID,
             MediaStore.MediaColumns.DISPLAY_NAME,
             MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.RELATIVE_PATH,
         )
         // ponytail: sieht nur eigene MediaStore-Beiträge — nach Reinstall ist die Library leer, Dateien bleiben auf Disk
         resolver.query(
             filesUri, projection,
-            "${MediaStore.MediaColumns.RELATIVE_PATH}=?", arrayOf(RELATIVE_PATH), null,
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?", arrayOf("$RELATIVE_PATH%"), null,
         )?.use { c ->
             while (c.moveToNext()) {
                 val uri = ContentUris.withAppendedId(filesUri, c.getLong(0))
                 val name = c.getString(1) ?: continue
+                val relPath = c.getString(3) ?: RELATIVE_PATH
                 when {
-                    name.endsWith(".m4a") -> audio += Row(uri, name.removeSuffix(".m4a"), c.getLong(2))
+                    name.endsWith(".m4a") -> audio += Row(uri, name.removeSuffix(".m4a"), c.getLong(2), relPath)
                     name.endsWith(".json") -> metaByBase[name.removeSuffix(".json")] = uri
                 }
             }
         }
 
+        val dateRegex = Regex("""(\d{4}-\d{2}-\d{2})/?$""")
         return audio.map { row ->
             val metaUri = metaByBase[row.name]
             val meta = metaUri?.let { readMeta(it) }
+            val folderDate = dateRegex.find(row.relPath.trimEnd('/'))?.groupValues?.get(1)
             RecordingEntry(
                 audioUri = row.uri,
                 metaUri = metaUri,
@@ -109,6 +114,8 @@ class RecordingRepository(private val context: Context) {
                 addedAtEpochSec = row.added,
                 durationMs = meta?.durationMs?.takeIf { it > 0 } ?: probeDuration(row.uri),
                 markerCount = meta?.markers?.size ?: 0,
+                dateGroup = folderDate ?: java.time.Instant.ofEpochSecond(row.added)
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString(),
             )
         }.sortedByDescending { it.addedAtEpochSec }
     }
@@ -134,6 +141,16 @@ class RecordingRepository(private val context: Context) {
         }
     }
 
+    /** Rename both files of an in-flight recording (finalize title on stop). */
+    fun renameFiles(files: RecordingFiles, newBase: String) {
+        resolver.update(files.audioUri, ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "$newBase.m4a")
+        }, null, null)
+        resolver.update(files.metaUri, ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "$newBase.json")
+        }, null, null)
+    }
+
     fun delete(entry: RecordingEntry) {
         resolver.delete(entry.audioUri, null, null)
         entry.metaUri?.let { resolver.delete(it, null, null) }
@@ -142,7 +159,9 @@ class RecordingRepository(private val context: Context) {
     /** Writes <base>.labels.txt next to the recording; returns its Uri. */
     // ponytail: repeated export creates "name (1).txt" duplicates — dedupe when it annoys
     fun exportLabels(entry: RecordingEntry, meta: RecordingMeta): Uri {
-        val uri = insert("${entry.baseName}.labels.txt", "text/plain", pending = false)
+        val folder = if (entry.dateGroup.matches(Regex("""\d{4}-\d{2}-\d{2}""")))
+            "$RELATIVE_PATH${entry.dateGroup}/" else RELATIVE_PATH
+        val uri = insert("${entry.baseName}.labels.txt", "text/plain", folder, pending = false)
         resolver.openOutputStream(uri, "wt")!!.use {
             it.write(meta.toAudacityLabels().toByteArray())
         }
