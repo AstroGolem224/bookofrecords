@@ -232,7 +232,7 @@ class RecorderService : Service() {
                 repo.discard(f)
             }
         }
-        fd = null; files = null
+        fd = null; files = null; meta = null; paused = false
         wakeLock?.let { if (it.isHeld) it.release() }
         RecorderState.state.value = RecState.Idle
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -240,6 +240,7 @@ class RecorderService : Service() {
     }
 
     private fun publishState() {
+        if (!clock.running) return
         val m = meta ?: return
         RecorderState.state.value = RecState.Recording(
             baseName = m.file.removeSuffix(".m4a"),

@@ -60,6 +60,7 @@ import com.claymachinegames.bookofrecords.data.RecordingEntry
 import com.claymachinegames.bookofrecords.data.RecordingRepository
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.formatMs
+import com.claymachinegames.bookofrecords.domain.sanitizeTitle
 import com.claymachinegames.bookofrecords.domain.titlePartOf
 import com.claymachinegames.bookofrecords.domain.withTitle
 import kotlinx.coroutines.Dispatchers
@@ -163,14 +164,16 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
             meta?.markers?.forEach { m ->
                 val frac = (m.timeMs.toFloat() / duration).coerceIn(0f, 1f)
                 Box(
-                    Modifier.offset(x = w * frac - 1.dp, y = 8.dp)
-                        .size(2.dp, 10.dp)
-                        .background(Bor.levelAmber)
+                    Modifier.offset(x = w * frac - 6.dp, y = 5.dp)
+                        .size(12.dp, 16.dp)
                         .clickable {
                             player.seekTo(m.timeMs.toInt())
                             positionMs = m.timeMs.toInt()
                         },
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(2.dp, 10.dp).background(Bor.levelAmber))
+                }
             }
         }
 
@@ -323,7 +326,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
                 TextButton(onClick = {
                     val isBoR = titlePartOf(entry.baseName) != null
                     val newBase = if (isBoR) withTitle(entry.baseName, renameText)
-                                  else renameText.trim()
+                                  else sanitizeTitle(renameText)
                     if (newBase.isNotEmpty() && newBase != entry.baseName) {
                         runCatching { repo.rename(entry, newBase) }.onFailure {
                             Toast.makeText(context, "Umbenennen fehlgeschlagen",
