@@ -26,7 +26,9 @@ import com.claymachinegames.bookofrecords.domain.Marker
 import com.claymachinegames.bookofrecords.domain.MarkerClock
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.dateFolder
+import com.claymachinegames.bookofrecords.domain.levelFraction
 import com.claymachinegames.bookofrecords.domain.recordingBaseName
+import com.claymachinegames.bookofrecords.domain.sanitizeTitle
 import com.claymachinegames.bookofrecords.domain.formatMs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +49,8 @@ class RecorderService : Service() {
         const val ACTION_RESUME = "resume"
         const val ACTION_MARKER = "marker"
         const val ACTION_STOP = "stop"
+        const val ACTION_SET_TITLE = "set_title"
+        const val EXTRA_TITLE = "title"
         private const val CHANNEL_ID = "recording"
         private const val NOTIF_ID = 1
 
@@ -60,6 +64,8 @@ class RecorderService : Service() {
     private var fd: ParcelFileDescriptor? = null
     private var meta: RecordingMeta? = null
     private var startedLocal: LocalDateTime? = null
+    private var title = ""
+    private var level = 0f
     private var paused = false
     private val clock = MarkerClock(SystemClock::elapsedRealtime)
     private var wakeLock: PowerManager.WakeLock? = null
@@ -94,6 +100,10 @@ class RecorderService : Service() {
             ACTION_RESUME -> resumeRecording()
             ACTION_MARKER -> addMarker()
             ACTION_STOP -> stopRecording()
+            ACTION_SET_TITLE -> {
+                title = sanitizeTitle(intent.getStringExtra(EXTRA_TITLE) ?: "")
+                publishState()
+            }
         }
         // startForegroundService-Vertrag: läuft danach nichts, Service sofort beenden,
         // sonst ForegroundServiceDidNotStartInTimeException nach ~10s
@@ -140,10 +150,20 @@ class RecorderService : Service() {
             )
             repo.writeMeta(f.metaUri, meta!!)
             paused = false
+            title = ""
+            level = 0f
             clock.start()
 
             ticker = scope.launch {
-                while (true) { publishState(); updateNotification(); delay(1000) }
+                var i = 0
+                while (true) {
+                    level = if (paused) 0f
+                            else runCatching { levelFraction(recorder?.maxAmplitude ?: 0) }.getOrDefault(0f)
+                    publishState()
+                    if (i % 4 == 0) updateNotification()
+                    i++
+                    delay(250)
+                }
             }
         } catch (e: Exception) {
             Toast.makeText(this, "Aufnahme konnte nicht gestartet werden", Toast.LENGTH_LONG).show()
@@ -194,6 +214,12 @@ class RecorderService : Service() {
         clock.stop()
         files?.let { f ->
             if (stopped) {
+                val finalBase = recordingBaseName(startedLocal ?: LocalDateTime.now(), title)
+                val currentBase = meta?.file?.removeSuffix(".m4a")
+                if (currentBase != null && finalBase != currentBase) {
+                    runCatching { repo.renameFiles(f, finalBase) }
+                        .onSuccess { meta = meta?.copy(file = "$finalBase.m4a") }
+                }
                 meta?.let { runCatching { repo.writeMeta(f.metaUri, it) } }
                 runCatching { fd?.close() }
                 runCatching { repo.publish(f.audioUri) }
@@ -214,9 +240,11 @@ class RecorderService : Service() {
         val m = meta ?: return
         RecorderState.state.value = RecState.Recording(
             baseName = m.file.removeSuffix(".m4a"),
+            title = title,
             paused = paused,
             elapsedMs = clock.elapsedMs(),
             markers = m.markers,
+            level = level,
         )
     }
 

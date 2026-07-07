@@ -7,9 +7,11 @@ sealed interface RecState {
     data object Idle : RecState
     data class Recording(
         val baseName: String,
+        val title: String,
         val paused: Boolean,
         val elapsedMs: Long,
         val markers: List<Marker>,
+        val level: Float,          // 0..1, logarithmisch (levelFraction)
     ) : RecState
 }
 
