@@ -72,7 +72,8 @@ private fun App() {
         )
         Screen.Library -> {
             BackHandler { screen = Screen.Record }
-            LibraryScreen(repo = repo, onOpen = { screen = Screen.Detail(it) })
+            LibraryScreen(repo = repo, onOpen = { screen = Screen.Detail(it) },
+                onNewRecording = { screen = Screen.Record })
         }
         is Screen.Detail -> {
             BackHandler { screen = Screen.Library }
