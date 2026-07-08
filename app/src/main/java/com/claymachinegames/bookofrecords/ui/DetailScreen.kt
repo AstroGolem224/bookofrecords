@@ -58,8 +58,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.claymachinegames.bookofrecords.data.LibraryStore
 import com.claymachinegames.bookofrecords.data.RecordingEntry
+import com.claymachinegames.bookofrecords.domain.Marker
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.formatMs
+import com.claymachinegames.bookofrecords.domain.insertMarkerSorted
 import com.claymachinegames.bookofrecords.domain.sanitizeTitle
 import com.claymachinegames.bookofrecords.domain.titlePartOf
 import com.claymachinegames.bookofrecords.domain.withTitle
@@ -127,6 +129,19 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
         markers[index] = markers[index].copy(label = label, type = type)
         saveMeta(m.copy(markers = markers))
     }
+
+    var editText by remember { mutableStateOf("") }
+    // Getippter Text ging bisher verloren, sobald man vor "Speichern" woanders hintippte
+    // oder den Screen verließ (Bug-Report: Marker im JSON immer type="note"/label="").
+    // commitPending() sichert den Text an jeder dieser Stellen.
+    fun commitPending() {
+        val i = selected
+        if (i < 0) return
+        val current = meta?.markers?.getOrNull(i) ?: return
+        val trimmed = editText.trim()
+        if (trimmed != current.label) setLabel(i, trimmed, "speaker")
+    }
+    DisposableEffect(Unit) { onDispose { commitPending() } }
 
     val duration = player.duration.coerceAtLeast(1)
 
@@ -201,19 +216,6 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
             }
             Chip("+ Neu", dashed = true) { showNewChip = true }
         }
-
-        var editText by remember { mutableStateOf("") }
-        // Getippter Text ging bisher verloren, sobald man vor "Speichern" woanders hintippte
-        // oder den Screen verließ (Bug-Report: Marker im JSON immer type="note"/label="").
-        // commitPending() sichert den Text an jeder dieser Stellen.
-        fun commitPending() {
-            val i = selected
-            if (i < 0) return
-            val current = meta?.markers?.getOrNull(i) ?: return
-            val trimmed = editText.trim()
-            if (trimmed != current.label) setLabel(i, trimmed, "speaker")
-        }
-        DisposableEffect(Unit) { onDispose { commitPending() } }
 
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(meta?.markers.orEmpty()) { i, m ->
@@ -290,17 +292,23 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
         AlertDialog(
             onDismissRequest = { showNewChip = false },
             containerColor = Bor.surface,
-            title = { Text("Neuer Sprecher", color = Bor.textPrimary) },
+            title = { Text("Neuer Marker", color = Bor.textPrimary) },
             text = {
                 OutlinedTextField(value = newName, onValueChange = { newName = it },
                     colors = borFieldColors(), singleLine = true)
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (selected >= 0 && newName.isNotBlank())
-                        setLabel(selected, newName.trim(), "speaker")
+                    val m = meta
+                    if (m != null && newName.isNotBlank()) {
+                        // vorherige Inline-Bearbeitung sichern, bevor sich Indizes durch den Insert verschieben
+                        commitPending()
+                        val marker = Marker(timeMs = positionMs.toLong(), type = "speaker", label = newName.trim())
+                        saveMeta(m.copy(markers = insertMarkerSorted(m.markers, marker)))
+                        selected = -1
+                    }
                     showNewChip = false
-                }) { Text("Zuweisen", color = Bor.accent) }
+                }) { Text("Anlegen", color = Bor.accent) }
             },
             dismissButton = { TextButton(onClick = { showNewChip = false }) {
                 Text("Abbrechen", color = Bor.textSecondary) } },

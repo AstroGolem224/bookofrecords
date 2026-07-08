@@ -77,6 +77,13 @@ fun levelFraction(maxAmplitude: Int): Float {
     return log10(1.0 + 9.0 * x).toFloat()
 }
 
+/** Insert [marker] keeping the list ascending by timeMs (list display + ticks stay chronological). */
+fun insertMarkerSorted(markers: List<Marker>, marker: Marker): List<Marker> {
+    val index = markers.indexOfFirst { it.timeMs > marker.timeMs }
+    return if (index < 0) markers + marker
+    else markers.toMutableList().apply { add(index, marker) }
+}
+
 fun formatMs(ms: Long): String {
     val total = ms / 1000
     val h = total / 3600

@@ -84,4 +84,39 @@ class ModelTest {
         assertEquals(null, titlePartOf("my_BoRing_song"))
         assertEquals("mix", titlePartOf("2026-07-08_19-30_BoR_mix"))
     }
+
+    @Test
+    fun insertMarkerSortedIntoMiddle() {
+        val m1 = Marker(timeMs = 1000)
+        val m3 = Marker(timeMs = 3000)
+        val inserted = Marker(timeMs = 2000, type = "speaker", label = "Mid")
+        assertEquals(listOf(m1, inserted, m3), insertMarkerSorted(listOf(m1, m3), inserted))
+    }
+
+    @Test
+    fun insertMarkerSortedAtStart() {
+        val m2 = Marker(timeMs = 2000)
+        val inserted = Marker(timeMs = 500)
+        assertEquals(listOf(inserted, m2), insertMarkerSorted(listOf(m2), inserted))
+    }
+
+    @Test
+    fun insertMarkerSortedAtEnd() {
+        val m1 = Marker(timeMs = 1000)
+        val inserted = Marker(timeMs = 5000)
+        assertEquals(listOf(m1, inserted), insertMarkerSorted(listOf(m1), inserted))
+    }
+
+    @Test
+    fun insertMarkerSortedIntoEmptyList() {
+        val inserted = Marker(timeMs = 100)
+        assertEquals(listOf(inserted), insertMarkerSorted(emptyList(), inserted))
+    }
+
+    @Test
+    fun insertMarkerSortedTieBreaksAfterExisting() {
+        val m1 = Marker(timeMs = 1000, label = "first")
+        val inserted = Marker(timeMs = 1000, label = "second")
+        assertEquals(listOf(m1, inserted), insertMarkerSorted(listOf(m1), inserted))
+    }
 }
