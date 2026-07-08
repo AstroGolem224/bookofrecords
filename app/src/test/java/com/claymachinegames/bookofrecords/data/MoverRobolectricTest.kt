@@ -68,7 +68,6 @@ class MoverRobolectricTest {
 
         mover.moveOne(root, entry)
 
-        val dateDir = root.findFile("2026-07-08")!!
         assertEquals("audio-bytes", File(rootFolder.root, "2026-07-08/a.m4a").readText())
         assertEquals("""{"file":"a.m4a"}""", File(rootFolder.root, "2026-07-08/a.json").readText())
         assertTrue(root.findFile("source")!!.listFiles().isEmpty())   // source deleted after successful move

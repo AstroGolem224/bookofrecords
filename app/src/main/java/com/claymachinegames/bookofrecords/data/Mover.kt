@@ -22,6 +22,8 @@ class Mover(private val context: Context, private val local: RecordingRepository
         }
     }
 
+    // internal (not private) so MoverRobolectricTest can exercise moveOne/findOrCreateDir/
+    // copyIfNeeded directly — sweep() remains the only intended entry point in production code.
     internal fun moveOne(root: DocumentFile, entry: RecordingEntry) {
         val dir = findOrCreateDir(root, entry.dateGroup)
         val audioOk = copyIfNeeded(dir, "${entry.baseName}.m4a", entry.audioUri)
