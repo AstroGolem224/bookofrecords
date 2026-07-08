@@ -203,6 +203,18 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
         }
 
         var editText by remember { mutableStateOf("") }
+        // Getippter Text ging bisher verloren, sobald man vor "Speichern" woanders hintippte
+        // oder den Screen verließ (Bug-Report: Marker im JSON immer type="note"/label="").
+        // commitPending() sichert den Text an jeder dieser Stellen.
+        fun commitPending() {
+            val i = selected
+            if (i < 0) return
+            val current = meta?.markers?.getOrNull(i) ?: return
+            val trimmed = editText.trim()
+            if (trimmed != current.label) setLabel(i, trimmed, "speaker")
+        }
+        DisposableEffect(Unit) { onDispose { commitPending() } }
+
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(meta?.markers.orEmpty()) { i, m ->
                 Column(
@@ -211,8 +223,9 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
                         .border(1.dp, if (selected == i) Bor.accent else Bor.borderSubtle,
                             RoundedCornerShape(8.dp))
                         .clickable {
+                            commitPending()
                             selected = if (selected == i) -1 else i
-                            editText = m.label
+                            editText = if (selected == i) m.label else ""
                         }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                 ) {
@@ -237,7 +250,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
                             modifier = Modifier.fillMaxWidth(),
                         )
                         TextButton(onClick = {
-                            setLabel(i, editText.trim(), "speaker")
+                            commitPending()
                             selected = -1
                         }) { Text("Speichern", color = Bor.accent) }
                     }
