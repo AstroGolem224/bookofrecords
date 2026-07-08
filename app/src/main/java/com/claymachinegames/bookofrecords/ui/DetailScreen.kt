@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -205,15 +203,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
             }
         }
 
-        val speakerNames = meta?.markers
-            ?.filter { it.type == "speaker" && it.label.isNotBlank() }
-            ?.map { it.label }?.distinct().orEmpty()
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 10.dp)) {
-            speakerNames.forEach { name ->
-                Chip(name) {
-                    if (selected >= 0) setLabel(selected, name, "speaker")
-                }
-            }
+        Row(Modifier.padding(vertical = 10.dp)) {
             Chip("+ Neu", dashed = true) { showNewChip = true }
         }
 
