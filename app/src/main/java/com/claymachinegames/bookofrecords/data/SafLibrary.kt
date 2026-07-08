@@ -21,6 +21,11 @@ class SafLibrary(private val context: Context, private val treeUri: Uri) : Libra
             root().listFiles().filter { it.isDirectory && it.name?.matches(dateDirName) == true }
         } catch (e: SecurityException) {
             throw LibraryUnavailableException("Berechtigung verloren")
+        } catch (e: IllegalArgumentException) {
+            // DocumentFile.fromTreeUri()/root() throws this (rather than returning null) when
+            // the stored tree Uri is structurally malformed — e.g. corrupted SharedPreferences —
+            // which is exactly the "folder unreachable" case this store already reports.
+            throw LibraryUnavailableException("Speicherordner nicht erreichbar")
         }
 
         return dateDirs.flatMap { dir ->

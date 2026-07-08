@@ -22,7 +22,13 @@ class FakeDocumentsProvider : DocumentsProvider() {
         const val AUTHORITY = "com.claymachinegames.bookofrecords.faketest"
         lateinit var rootDir: File
 
-        fun treeUri(): Uri = DocumentsContract.buildTreeDocumentUri(AUTHORITY, "")
+        // Root document id must be a real (non-empty) path segment: Uri collapses a trailing
+        // empty segment, so DocumentsContract.buildTreeDocumentUri(AUTHORITY, "") produces a
+        // Uri that Android's own DocumentsContract.getTreeDocumentId() can't parse back
+        // (IllegalArgumentException — missing path segment). fileFor()/documentIdFor() already
+        // treat "" as an alias for rootDir, so any real id works; DocumentsContract.buildTreeDocumentUri
+        // just needs a non-empty one to round-trip correctly.
+        fun treeUri(): Uri = DocumentsContract.buildTreeDocumentUri(AUTHORITY, "root")
     }
 
     private val docProjection = arrayOf(
@@ -39,7 +45,7 @@ class FakeDocumentsProvider : DocumentsProvider() {
         }
 
     private fun fileFor(documentId: String): File =
-        if (documentId.isEmpty()) rootDir else File(rootDir, documentId)
+        if (documentId.isEmpty() || documentId == "root") rootDir else File(rootDir, documentId)
 
     private fun documentIdFor(file: File): String = file.relativeTo(rootDir).path
 
@@ -104,6 +110,11 @@ class FakeDocumentsProvider : DocumentsProvider() {
     override fun openDocument(documentId: String, mode: String, signal: CancellationSignal?): ParcelFileDescriptor =
         ParcelFileDescriptor.open(fileFor(documentId), ParcelFileDescriptor.parseMode(mode))
 
-    override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean =
-        documentId.startsWith(if (parentDocumentId.isEmpty()) "" else "$parentDocumentId${File.separator}")
+    override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
+        // "root"/"" are aliases for rootDir itself (see fileFor()), so every real document id is
+        // a descendant of them; DocumentsProvider.enforceTree() calls this to verify a document
+        // actually lives under the tree's root before allowing any query/mutation against it.
+        if (parentDocumentId.isEmpty() || parentDocumentId == "root") return true
+        return documentId.startsWith("$parentDocumentId${File.separator}")
+    }
 }
