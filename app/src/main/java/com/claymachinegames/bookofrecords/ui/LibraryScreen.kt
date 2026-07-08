@@ -90,12 +90,20 @@ fun LibraryScreen(
         if (uri != null) {
             val chosen = entries.filter { it.audioUri in selected }
             scope.launch {
-                val bytes = exportZipBytes(context, store, chosen)
-                context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-                Toast.makeText(context, "Gespeichert", Toast.LENGTH_SHORT).show()
+                runCatching {
+                    val bytes = exportZipBytes(context, store, chosen)
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                            ?: error("openOutputStream returned null")
+                    }
+                }.onSuccess {
+                    selected = emptySet()
+                    selectionMode = false
+                    Toast.makeText(context, "Gespeichert", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(context, "Speichern fehlgeschlagen", Toast.LENGTH_SHORT).show()
+                }
             }
-            selected = emptySet()
-            selectionMode = false
         }
     }
 
