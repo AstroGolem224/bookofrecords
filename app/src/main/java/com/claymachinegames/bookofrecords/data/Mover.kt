@@ -22,20 +22,20 @@ class Mover(private val context: Context, private val local: RecordingRepository
         }
     }
 
-    private fun moveOne(root: DocumentFile, entry: RecordingEntry) {
+    internal fun moveOne(root: DocumentFile, entry: RecordingEntry) {
         val dir = findOrCreateDir(root, entry.dateGroup)
         val audioOk = copyIfNeeded(dir, "${entry.baseName}.m4a", entry.audioUri)
         val metaOk = entry.metaUri?.let { copyIfNeeded(dir, "${entry.baseName}.json", it) } ?: true
         if (audioOk && metaOk) local.delete(entry)
     }
 
-    private fun findOrCreateDir(root: DocumentFile, name: String): DocumentFile =
+    internal fun findOrCreateDir(root: DocumentFile, name: String): DocumentFile =
         root.listFiles().firstOrNull { it.isDirectory && it.name == name }
             ?: root.createDirectory(name)
             ?: error("SAF createDirectory failed: $name")
 
     /** True once the destination exists and matches the source length (already moved or freshly copied). */
-    private fun copyIfNeeded(dir: DocumentFile, displayName: String, sourceUri: Uri): Boolean {
+    internal fun copyIfNeeded(dir: DocumentFile, displayName: String, sourceUri: Uri): Boolean {
         val sourceLen = length(sourceUri) ?: return false
         val existing = dir.listFiles().firstOrNull { it.name == displayName }
         if (existing != null && existing.length() == sourceLen) return true

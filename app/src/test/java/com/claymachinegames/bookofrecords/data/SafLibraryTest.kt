@@ -6,6 +6,8 @@ import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
+import android.provider.DocumentsProvider
 import androidx.test.core.app.ApplicationProvider
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import org.junit.Assert.assertEquals
@@ -50,6 +52,28 @@ class ShadowDocumentsAwareContentResolver : ShadowContentResolver() {
         val provider = ShadowContentResolver.getProvider(uri)
             ?: error("No provider registered for ${FakeDocumentsProvider.AUTHORITY}")
         return provider.query(uri, projection, Bundle(), null)
+    }
+
+    // Same story as query() above: DocumentsProvider.delete(Uri, String, String[]) is also
+    // `final` and unconditionally throws ("Pre-Android-O delete format not supported"). On a
+    // real device, ContentResolver.delete() never actually reaches that legacy method for a
+    // DocumentsProvider Uri: DocumentsContract's SAF machinery routes deletes through
+    // ContentProvider#call(METHOD_DELETE_DOCUMENT, ...), which dispatches to
+    // DocumentsProvider.deleteDocument(String) — the method providers are meant to implement.
+    // ContentProvider's own delete(Uri, Bundle) default (which ContentResolver.delete(Uri,
+    // String, String[]) also funnels through on a real device) just re-derives selection/args
+    // and calls the throwing 3-arg delete() again, so redirecting there doesn't help either.
+    // Skip straight to the real work: extract the document id and call deleteDocument(), same
+    // as FakeDocumentsProvider.deleteDocument() (which already exists and is correct) expects.
+    @Implementation
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int {
+        if (uri.authority != FakeDocumentsProvider.AUTHORITY) {
+            return super.delete(uri, selection, selectionArgs)
+        }
+        val provider = ShadowContentResolver.getProvider(uri) as? DocumentsProvider
+            ?: error("No provider registered for ${FakeDocumentsProvider.AUTHORITY}")
+        provider.deleteDocument(DocumentsContract.getDocumentId(uri))
+        return 1
     }
 }
 
