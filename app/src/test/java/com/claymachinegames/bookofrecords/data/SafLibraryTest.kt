@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.test.core.app.ApplicationProvider
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
