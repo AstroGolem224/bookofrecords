@@ -92,9 +92,12 @@ class RecordingRepository(private val context: Context) : LibraryStore {
             MediaStore.MediaColumns.RELATIVE_PATH,
         )
         // ponytail: sieht nur eigene MediaStore-Beiträge — nach Reinstall ist die Library leer, Dateien bleiben auf Disk
+        // IS_PENDING=0 ausschließen: MediaStore zeigt eigene pending Zeilen der eigenen App —
+        // ohne den Filter könnte Mover eine noch laufende Aufnahme erwischen und löschen (Task 4/6 Review-Fund)
         resolver.query(
             filesUri, projection,
-            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?", arrayOf("$RELATIVE_PATH%"), null,
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.IS_PENDING} = 0",
+            arrayOf("$RELATIVE_PATH%"), null,
         )?.use { c ->
             while (c.moveToNext()) {
                 val uri = ContentUris.withAppendedId(filesUri, c.getLong(0))
