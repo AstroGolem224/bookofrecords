@@ -56,10 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.claymachinegames.bookofrecords.data.LibraryStore
 import com.claymachinegames.bookofrecords.data.RecordingEntry
-import com.claymachinegames.bookofrecords.domain.Marker
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.formatMs
-import com.claymachinegames.bookofrecords.domain.insertMarkerSorted
 import com.claymachinegames.bookofrecords.domain.sanitizeTitle
 import com.claymachinegames.bookofrecords.domain.titlePartOf
 import com.claymachinegames.bookofrecords.domain.withTitle
@@ -76,13 +74,19 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
     val scope = rememberCoroutineScope()
     val metaWriter = remember { Dispatchers.IO.limitedParallelism(1) }
 
-    var meta by remember { mutableStateOf<RecordingMeta?>(null) }
-    var selected by remember { mutableIntStateOf(-1) }
+    val editor = remember {
+        MarkerEditor(initialMeta = null) { updated ->
+            entry.metaUri?.let { uri ->
+                scope.launch(metaWriter) { runCatching { store.writeMeta(uri, updated) } }
+            }
+        }
+    }
     var positionMs by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
     var showNewChip by remember { mutableStateOf(false) }
+    var showDeleteMarker by remember { mutableStateOf(false) }
 
     val displayTitle = titlePartOf(entry.baseName)?.takeIf { it.isNotEmpty() } ?: entry.baseName
     var renameText by remember {
@@ -106,40 +110,17 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
         }
     }
     LaunchedEffect(Unit) {
-        meta = withContext(Dispatchers.IO) { entry.metaUri?.let { store.readMeta(it) } }
+        val loaded = withContext(Dispatchers.IO) { entry.metaUri?.let { store.readMeta(it) } }
             ?: RecordingMeta(file = "${entry.baseName}.m4a", startedAt = "",
                              durationMs = entry.durationMs)
+        editor.updateMeta(loaded)
     }
     if (player == null) return
     LaunchedEffect(playing) {
         while (playing) { positionMs = player.currentPosition; delay(250) }
     }
 
-    fun saveMeta(updated: RecordingMeta) {
-        meta = updated
-        entry.metaUri?.let { uri ->
-            scope.launch(metaWriter) { runCatching { store.writeMeta(uri, updated) } }
-        }
-    }
-    fun setLabel(index: Int, label: String, type: String) {
-        val m = meta ?: return
-        val markers = m.markers.toMutableList()
-        markers[index] = markers[index].copy(label = label, type = type)
-        saveMeta(m.copy(markers = markers))
-    }
-
-    var editText by remember { mutableStateOf("") }
-    // Getippter Text ging bisher verloren, sobald man vor "Speichern" woanders hintippte
-    // oder den Screen verließ (Bug-Report: Marker im JSON immer type="note"/label="").
-    // commitPending() sichert den Text an jeder dieser Stellen.
-    fun commitPending() {
-        val i = selected
-        if (i < 0) return
-        val current = meta?.markers?.getOrNull(i) ?: return
-        val trimmed = editText.trim()
-        if (trimmed != current.label) setLabel(i, trimmed, "speaker")
-    }
-    DisposableEffect(Unit) { onDispose { commitPending() } }
+    DisposableEffect(Unit) { onDispose { editor.commitPending() } }
 
     val duration = player.duration.coerceAtLeast(1)
 
@@ -174,7 +155,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
                     thumbColor = Bor.accent, activeTrackColor = Bor.accent,
                     inactiveTrackColor = Bor.borderSubtle),
             )
-            meta?.markers?.forEach { m ->
+            editor.meta?.markers?.forEach { m ->
                 val frac = (m.timeMs.toFloat() / duration).coerceIn(0f, 1f)
                 Box(
                     Modifier.offset(x = w * frac - 6.dp, y = 5.dp)
@@ -208,17 +189,13 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
         }
 
         LazyColumn(Modifier.weight(1f)) {
-            itemsIndexed(meta?.markers.orEmpty()) { i, m ->
+            itemsIndexed(editor.meta?.markers.orEmpty()) { i, m ->
                 Column(
                     Modifier.fillMaxWidth().padding(vertical = 3.dp)
                         .background(Bor.surface, RoundedCornerShape(8.dp))
-                        .border(1.dp, if (selected == i) Bor.accent else Bor.borderSubtle,
+                        .border(1.dp, if (editor.selected == i) Bor.accent else Bor.borderSubtle,
                             RoundedCornerShape(8.dp))
-                        .clickable {
-                            commitPending()
-                            selected = if (selected == i) -1 else i
-                            editText = if (selected == i) m.label else ""
-                        }
+                        .clickable { editor.select(i) }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -233,18 +210,25 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
                             color = if (m.label.isEmpty()) Bor.textMuted else Bor.textPrimary,
                             fontSize = 13.sp)
                     }
-                    if (selected == i) {
+                    if (editor.selected == i) {
                         OutlinedTextField(
-                            value = editText,
-                            onValueChange = { editText = it },
+                            value = editor.editText,
+                            onValueChange = { editor.editText = it },
                             label = { Text("Sprecher / Notiz", color = Bor.textMuted) },
                             colors = borFieldColors(),
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        TextButton(onClick = {
-                            commitPending()
-                            selected = -1
-                        }) { Text("Speichern", color = Bor.accent) }
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            TextButton(onClick = { editor.select(i) }) {
+                                Text("Speichern", color = Bor.accent)
+                            }
+                            IconButton(onClick = { showDeleteMarker = true }) {
+                                Icon(Icons.Filled.Delete, "Marker löschen", tint = Bor.textMuted)
+                            }
+                        }
                     }
                 }
             }
@@ -256,7 +240,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             TextButton(onClick = {
-                meta?.let { m ->
+                editor.meta?.let { m ->
                     val uri = store.exportLabels(entry, m)
                     Toast.makeText(context, "Exportiert: $uri", Toast.LENGTH_SHORT).show()
                 }
@@ -289,18 +273,29 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val m = meta
-                    if (m != null && newName.isNotBlank()) {
-                        // vorherige Inline-Bearbeitung sichern, bevor sich Indizes durch den Insert verschieben
-                        commitPending()
-                        val marker = Marker(timeMs = positionMs.toLong(), type = "speaker", label = newName.trim())
-                        saveMeta(m.copy(markers = insertMarkerSorted(m.markers, marker)))
-                        selected = -1
-                    }
+                    editor.addMarker(timeMs = positionMs.toLong(), label = newName)
                     showNewChip = false
                 }) { Text("Anlegen", color = Bor.accent) }
             },
             dismissButton = { TextButton(onClick = { showNewChip = false }) {
+                Text("Abbrechen", color = Bor.textSecondary) } },
+        )
+    }
+
+    if (showDeleteMarker) {
+        val label = editor.meta?.markers?.getOrNull(editor.selected)?.label?.ifEmpty { "(unbenannt)" } ?: ""
+        AlertDialog(
+            onDismissRequest = { showDeleteMarker = false },
+            containerColor = Bor.surface,
+            title = { Text("Marker löschen?", color = Bor.textPrimary) },
+            text = { Text(label, color = Bor.textSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    editor.deleteMarker(editor.selected)
+                    showDeleteMarker = false
+                }) { Text("Löschen", color = Bor.accent) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteMarker = false }) {
                 Text("Abbrechen", color = Bor.textSecondary) } },
         )
     }
