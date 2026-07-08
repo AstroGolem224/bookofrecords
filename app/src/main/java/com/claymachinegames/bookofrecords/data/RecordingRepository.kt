@@ -91,9 +91,14 @@ class RecordingRepository(private val context: Context) : LibraryStore {
             MediaStore.MediaColumns.DATE_ADDED,
             MediaStore.MediaColumns.RELATIVE_PATH,
         )
-        // ponytail: sieht nur eigene MediaStore-Beiträge — nach Reinstall ist die Library leer, Dateien bleiben auf Disk
-        // IS_PENDING=0 ausschließen: MediaStore zeigt eigene pending Zeilen der eigenen App —
-        // ohne den Filter könnte Mover eine noch laufende Aufnahme erwischen und löschen (Task 4/6 Review-Fund)
+        // ponytail: MediaStore.Files only returns rows this app itself inserted (Android scopes
+        // ownership per-app for app-private paths), so a reinstall shows an empty Library even
+        // though the .m4a/.json files remain untouched on disk. A real fix needs a filesystem-level
+        // rescan (walk Documents/BookofRecords/ directly and re-adopt orphaned files) — not
+        // attempted; revisit if users report recordings "disappearing" after reinstalling, as
+        // opposed to after deliberate deletion.
+        // IS_PENDING=0 excludes this app's own in-flight recording — without it, Mover could
+        // sweep (and delete the local copy of) a recording still being written (Task 4/6 review finding).
         resolver.query(
             filesUri, projection,
             "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.IS_PENDING} = 0",
@@ -173,12 +178,17 @@ class RecordingRepository(private val context: Context) : LibraryStore {
         entry.metaUri?.let { resolver.delete(it, null, null) }
     }
 
-    /** Writes <base>.labels.txt next to the recording; returns its Uri. */
-    // ponytail: repeated export creates "name (1).txt" duplicates — dedupe when it annoys
+    /** Writes <base>.labels.txt next to the recording; returns its Uri. Overwrites on re-export. */
     override fun exportLabels(entry: RecordingEntry, meta: RecordingMeta): Uri {
         val folder = if (entry.dateGroup.matches(Regex("""\d{4}-\d{2}-\d{2}""")))
             "$RELATIVE_PATH${entry.dateGroup}/" else RELATIVE_PATH
-        val uri = insert("${entry.baseName}.labels.txt", "text/plain", folder, pending = false)
+        val displayName = "${entry.baseName}.labels.txt"
+        val existing = resolver.query(
+            filesUri, arrayOf(MediaStore.MediaColumns._ID),
+            "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
+            arrayOf(displayName, folder), null,
+        )?.use { c -> if (c.moveToFirst()) ContentUris.withAppendedId(filesUri, c.getLong(0)) else null }
+        val uri = existing ?: insert(displayName, "text/plain", folder, pending = false)
         resolver.openOutputStream(uri, "wt")!!.use {
             it.write(meta.toAudacityLabels().toByteArray())
         }
