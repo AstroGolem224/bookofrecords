@@ -171,7 +171,15 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
             }
         }
 
-        Row(Modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = {
+                positionMs = (positionMs - 30_000).coerceAtLeast(0)
+                player.seekTo(positionMs)
+            }) { Text("−30s", color = Bor.textSecondary) }
             IconButton(
                 onClick = {
                     if (playing) player.pause() else player.start()
@@ -182,6 +190,10 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
                 if (playing) Text("❚❚", color = Bor.onAccent, fontSize = 14.sp)
                 else Icon(Icons.Filled.PlayArrow, "Play", tint = Bor.onAccent)
             }
+            TextButton(onClick = {
+                positionMs = (positionMs + 30_000).coerceAtMost(duration)
+                player.seekTo(positionMs)
+            }) { Text("+30s", color = Bor.textSecondary) }
         }
 
         Row(Modifier.padding(vertical = 10.dp)) {
