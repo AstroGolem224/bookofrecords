@@ -1,6 +1,5 @@
 package com.claymachinegames.bookofrecords.data
 
-import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
@@ -51,26 +50,35 @@ class FakeDocumentsProvider : DocumentsProvider() {
         else -> "text/plain"
     }
 
-    private fun rowFor(cursor: MatrixCursor, file: File) {
-        cursor.newRow()
-            .add(documentIdFor(file))
-            .add(file.name)
-            .add(mimeOf(file))
-            .add(file.lastModified())
-            .add(if (file.isFile) file.length() else 0L)
-            .add(
-                if (file.isDirectory) Document.FLAG_DIR_SUPPORTS_CREATE
-                else Document.FLAG_SUPPORTS_WRITE or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME,
-            )
+    private fun valueFor(column: String, file: File): Any = when (column) {
+        Document.COLUMN_DOCUMENT_ID -> documentIdFor(file)
+        Document.COLUMN_DISPLAY_NAME -> file.name
+        Document.COLUMN_MIME_TYPE -> mimeOf(file)
+        Document.COLUMN_LAST_MODIFIED -> file.lastModified()
+        Document.COLUMN_SIZE -> if (file.isFile) file.length() else 0L
+        Document.COLUMN_FLAGS ->
+            if (file.isDirectory) Document.FLAG_DIR_SUPPORTS_CREATE
+            else Document.FLAG_SUPPORTS_WRITE or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME
+        else -> throw IllegalArgumentException("Unsupported column: $column")
     }
 
-    override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor =
-        MatrixCursor(docProjection).apply { rowFor(this, fileFor(documentId)) }
+    private fun rowFor(cursor: MatrixCursor, file: File, projection: Array<out String>) {
+        val row = cursor.newRow()
+        projection.forEach { column -> row.add(valueFor(column, file)) }
+    }
+
+    override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor {
+        val columns = projection ?: docProjection
+        return MatrixCursor(columns).apply { rowFor(this, fileFor(documentId), columns) }
+    }
 
     override fun queryChildDocuments(
         parentDocumentId: String, projection: Array<out String>?, sortOrder: String?,
-    ): Cursor = MatrixCursor(docProjection).apply {
-        fileFor(parentDocumentId).listFiles().orEmpty().sortedBy { it.name }.forEach { rowFor(this, it) }
+    ): Cursor {
+        val columns = projection ?: docProjection
+        return MatrixCursor(columns).apply {
+            fileFor(parentDocumentId).listFiles().orEmpty().sortedBy { it.name }.forEach { rowFor(this, it, columns) }
+        }
     }
 
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {
@@ -86,6 +94,9 @@ class FakeDocumentsProvider : DocumentsProvider() {
     override fun renameDocument(documentId: String, displayName: String): String {
         val file = fileFor(documentId)
         val target = File(file.parentFile, displayName)
+        if (target.exists()) {
+            throw java.io.FileNotFoundException("Already exists: $displayName")
+        }
         file.renameTo(target)
         return documentIdFor(target)
     }
