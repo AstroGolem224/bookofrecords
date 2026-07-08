@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.claymachinegames.bookofrecords.data.LibraryStore
 import com.claymachinegames.bookofrecords.data.LibraryUnavailableException
 import com.claymachinegames.bookofrecords.data.RecordingEntry
-import com.claymachinegames.bookofrecords.data.exportZipBytes
+import com.claymachinegames.bookofrecords.data.exportZip
 import com.claymachinegames.bookofrecords.domain.dateFolder
 import com.claymachinegames.bookofrecords.domain.formatMs
 import com.claymachinegames.bookofrecords.domain.titlePartOf
@@ -91,10 +91,10 @@ fun LibraryScreen(
             val chosen = entries.filter { it.audioUri in selected }
             scope.launch {
                 runCatching {
-                    val bytes = exportZipBytes(context, store, chosen)
                     withContext(Dispatchers.IO) {
-                        context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-                            ?: error("openOutputStream returned null")
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            exportZip(context, store, chosen, out)
+                        } ?: error("openOutputStream returned null")
                     }
                 }.onSuccess {
                     selected = emptySet()
