@@ -22,6 +22,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
+import org.robolectric.annotation.RealObject
+import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowContentResolver
 import java.io.File
 
@@ -77,8 +79,47 @@ class ShadowDocumentsAwareContentResolver : ShadowContentResolver() {
     }
 }
 
+/**
+ * Counts calls to DocumentsProvider.call() with method "android:createDocument" — the method
+ * name DocumentsContract.createDocument() actually dispatches through under the hood (verified
+ * empirically: DocumentFile.createFile() -> DocumentsContract.createDocument(ContentResolver, ...)
+ * -> ContentResolver.call() -> ContentProvider$Transport.call() -> ContentProvider.call() ->
+ * DocumentsProvider.call() -> DocumentsProvider.createDocument()). This is the only reliable seam
+ * for distinguishing "createFile() was invoked" from "findFile() was invoked" against
+ * FakeDocumentsProvider: FakeDocumentsProvider.createDocument()'s no-op-on-existing-file behavior
+ * (File.createNewFile() silently returns false without truncating, and still resolves to the same
+ * document id) makes the *end state* on disk identical whether SafLibrary.exportLabels() calls
+ * createFile() unconditionally (the bug) or only after findFile() misses (the fix) — so content/
+ * Uri/file-count assertions alone can't tell the buggy and fixed code apart under this fake.
+ * Counting createDocument dispatches does: findFile()/listFiles() goes through
+ * queryChildDocuments() and never touches this method at all, so the counter only advances when
+ * createFile() actually reaches the provider.
+ *
+ * FakeDocumentsProvider itself can't be subclassed to add this counter (it's a final Kotlin class,
+ * and off-limits to edit per task scope), and Robolectric's bytecode shadowing only instruments
+ * Android SDK classes, not arbitrary user test doubles — so `@Implements(FakeDocumentsProvider::class)`
+ * is not an option. Shadowing the abstract SDK class `DocumentsProvider` itself is safe here
+ * because FakeDocumentsProvider is the only DocumentsProvider subclass exercised by this test
+ * class, and Shadow.directlyOn() delegates back into the real (virtual) call() implementation, so
+ * FakeDocumentsProvider's own createDocument()/queryDocument()/etc. still run exactly as before.
+ */
+@Implements(DocumentsProvider::class)
+class ShadowCountingDocumentsProvider {
+    @RealObject lateinit var realProvider: DocumentsProvider
+
+    companion object {
+        var createDocumentCallCount = 0
+    }
+
+    @Implementation
+    fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        if (method == "android:createDocument") createDocumentCallCount++
+        return Shadow.directlyOn(realProvider, DocumentsProvider::class.java).call(method, arg, extras)
+    }
+}
+
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], shadows = [ShadowDocumentsAwareContentResolver::class])
+@Config(sdk = [34], shadows = [ShadowDocumentsAwareContentResolver::class, ShadowCountingDocumentsProvider::class])
 class SafLibraryTest {
 
     @get:Rule val tempFolder = TemporaryFolder()
@@ -144,6 +185,47 @@ class SafLibraryTest {
         assertTrue(renamedAudio.exists())
         assertTrue(renamedMeta.exists())
         assertEquals("new.m4a", RecordingMeta.fromJson(renamedMeta.readText()).file)
+    }
+
+    @Test
+    fun exportLabelsOverwritesExistingExportInsteadOfCreatingDuplicate() {
+        val dir = dateDir("2026-07-08")
+        File(dir, "a.m4a").writeText("audio")
+        File(dir, "a.json").writeText(RecordingMeta(file = "a.m4a", startedAt = "x").toJson())
+        val entry = library.list().first()
+        val meta = RecordingMeta(
+            file = "a.m4a", startedAt = "x",
+            markers = listOf(com.claymachinegames.bookofrecords.domain.Marker(timeMs = 1000, label = "first")),
+        )
+
+        ShadowCountingDocumentsProvider.createDocumentCallCount = 0
+        val firstUri = library.exportLabels(entry, meta)
+        assertEquals(
+            "first export must create the file via createFile()",
+            1, ShadowCountingDocumentsProvider.createDocumentCallCount,
+        )
+
+        val updatedMeta = meta.copy(markers = listOf(com.claymachinegames.bookofrecords.domain.Marker(timeMs = 2000, label = "second")))
+        val secondUri = library.exportLabels(entry, updatedMeta)
+
+        // The discriminating assertion: FakeDocumentsProvider.createDocument() doesn't
+        // disambiguate duplicate display names (unlike a real SAF provider), so a buggy
+        // exportLabels() that unconditionally calls createFile() a second time would still
+        // resolve to the same Uri/path here — file-count and content assertions alone can't
+        // catch that regression under this fake. Asserting the createDocument dispatch count
+        // stayed at 1 (i.e. the second exportLabels() call reused findFile() instead of hitting
+        // createFile() again) is the one signal that actually distinguishes the fixed
+        // `findFile() ?: createFile()` logic from the buggy unconditional `createFile()`.
+        assertEquals(
+            "second export must reuse findFile() and must NOT call createFile() again",
+            1, ShadowCountingDocumentsProvider.createDocumentCallCount,
+        )
+
+        assertEquals(firstUri, secondUri)
+        val labelFiles = dir.listFiles()?.filter { it.name.endsWith(".labels.txt") } ?: emptyList()
+        assertEquals(1, labelFiles.size)
+        val content = File(dir, "a.labels.txt").readText()
+        assertEquals(2.0, content.split("\t")[0].toDouble(), 0.001)
     }
 
     @Test(expected = LibraryUnavailableException::class)

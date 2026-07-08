@@ -67,8 +67,10 @@ class SafLibrary(private val context: Context, private val treeUri: Uri) : Libra
 
     override fun exportLabels(entry: RecordingEntry, meta: RecordingMeta): Uri {
         val dir = findDir(entry.dateGroup) ?: root()
-        val file = dir.createFile("text/plain", "${entry.baseName}.labels.txt")
-            ?: error("SAF createFile failed: ${entry.baseName}.labels.txt")
+        val displayName = "${entry.baseName}.labels.txt"
+        val file = dir.findFile(displayName)
+            ?: dir.createFile("text/plain", displayName)
+            ?: error("SAF createFile failed: $displayName")
         resolver.openOutputStream(file.uri, "wt")!!.use { it.write(meta.toAudacityLabels().toByteArray()) }
         return file.uri
     }
