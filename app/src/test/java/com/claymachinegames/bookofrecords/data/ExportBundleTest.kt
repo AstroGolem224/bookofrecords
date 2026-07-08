@@ -93,4 +93,21 @@ class ExportBundleTest {
             names,
         )
     }
+
+    @Test
+    fun exportZipBytesSkipsJsonAndLabelsWhenEntryHasNoMetaFile() = runBlocking {
+        val dir = File(tempFolder.root, "2026-07-08").apply { mkdirs() }
+        File(dir, "a.m4a").writeText("audio-bytes")
+        // no a.json written — entry.metaUri will be null
+        val entry = library.list().first()
+
+        val zipBytes = exportZipBytes(context, library, listOf(entry))
+
+        val names = mutableSetOf<String>()
+        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zip ->
+            var e = zip.nextEntry
+            while (e != null) { names.add(e.name); e = zip.nextEntry }
+        }
+        assertEquals(setOf("2026-07-08/a.m4a"), names)
+    }
 }
