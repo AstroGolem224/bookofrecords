@@ -9,8 +9,16 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.claymachinegames.bookofrecords.ui.Bor
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +42,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            BorTheme { Surface { App() } }
+            BorTheme {
+                Surface {
+                    // targetSdk 35 erzwingt Edge-to-Edge: bg füllt hinter die Systembars,
+                    // Inhalt bleibt in der Safe-Zone (inkl. IME)
+                    Box(
+                        Modifier.fillMaxSize().background(Bor.bg)
+                            .windowInsetsPadding(WindowInsets.safeDrawing),
+                    ) { App() }
+                }
+            }
         }
     }
 }
