@@ -21,7 +21,7 @@ data class RecordingEntry(
     val dateGroup: String,     // "2026-07-08" — aus Ordnername, Fallback DATE_ADDED
 )
 
-class RecordingRepository(private val context: Context) {
+class RecordingRepository(private val context: Context) : LibraryStore {
 
     private val resolver get() = context.contentResolver
     private val filesUri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -62,7 +62,7 @@ class RecordingRepository(private val context: Context) {
         }, null, null)
     }
 
-    fun writeMeta(metaUri: Uri, meta: RecordingMeta) {
+    override fun writeMeta(metaUri: Uri, meta: RecordingMeta) {
         resolver.openOutputStream(metaUri, "wt")!!.use { it.write(meta.toJson().toByteArray()) }
     }
 
@@ -72,7 +72,7 @@ class RecordingRepository(private val context: Context) {
         runCatching { resolver.delete(files.metaUri, null, null) }
     }
 
-    fun readMeta(metaUri: Uri): RecordingMeta? = runCatching {
+    override fun readMeta(metaUri: Uri): RecordingMeta? = runCatching {
         resolver.openInputStream(metaUri)!!.use {
             RecordingMeta.fromJson(it.readBytes().decodeToString())
         }
@@ -80,7 +80,7 @@ class RecordingRepository(private val context: Context) {
 
     // --- list ---
 
-    fun list(): List<RecordingEntry> {
+    override fun list(): List<RecordingEntry> {
         data class Row(val uri: Uri, val name: String, val added: Long, val relPath: String)
         val audio = mutableListOf<Row>()
         val metaByBase = mutableMapOf<String, Uri>()
@@ -134,7 +134,7 @@ class RecordingRepository(private val context: Context) {
 
     // --- rename / delete / export ---
 
-    fun rename(entry: RecordingEntry, newBase: String) {
+    override fun rename(entry: RecordingEntry, newBase: String) {
         resolver.update(entry.audioUri, ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "$newBase.m4a")
         }, null, null)
@@ -165,14 +165,14 @@ class RecordingRepository(private val context: Context) {
         }
     }
 
-    fun delete(entry: RecordingEntry) {
+    override fun delete(entry: RecordingEntry) {
         resolver.delete(entry.audioUri, null, null)
         entry.metaUri?.let { resolver.delete(it, null, null) }
     }
 
     /** Writes <base>.labels.txt next to the recording; returns its Uri. */
     // ponytail: repeated export creates "name (1).txt" duplicates — dedupe when it annoys
-    fun exportLabels(entry: RecordingEntry, meta: RecordingMeta): Uri {
+    override fun exportLabels(entry: RecordingEntry, meta: RecordingMeta): Uri {
         val folder = if (entry.dateGroup.matches(Regex("""\d{4}-\d{2}-\d{2}""")))
             "$RELATIVE_PATH${entry.dateGroup}/" else RELATIVE_PATH
         val uri = insert("${entry.baseName}.labels.txt", "text/plain", folder, pending = false)
