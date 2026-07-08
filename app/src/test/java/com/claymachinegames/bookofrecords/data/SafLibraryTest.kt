@@ -141,6 +141,7 @@ class SafLibraryTest {
         Robolectric.buildContentProvider(FakeDocumentsProvider::class.java)
             .create(providerInfo)
         library = SafLibrary(context, FakeDocumentsProvider.treeUri())
+        ShadowCountingDocumentsProvider.createDocumentCallCount = 0
     }
 
     private fun dateDir(name: String): File = File(tempFolder.root, name).apply { mkdirs() }
@@ -198,7 +199,6 @@ class SafLibraryTest {
             markers = listOf(com.claymachinegames.bookofrecords.domain.Marker(timeMs = 1000, label = "first")),
         )
 
-        ShadowCountingDocumentsProvider.createDocumentCallCount = 0
         val firstUri = library.exportLabels(entry, meta)
         assertEquals(
             "first export must create the file via createFile()",
