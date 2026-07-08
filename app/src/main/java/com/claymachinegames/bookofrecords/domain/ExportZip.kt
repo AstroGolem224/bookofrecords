@@ -1,18 +1,17 @@
 package com.claymachinegames.bookofrecords.domain
 
-import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-/** Bundles (path, bytes) pairs into one zip archive's raw bytes. */
-fun buildZip(entries: List<Pair<String, ByteArray>>): ByteArray {
-    val buffer = ByteArrayOutputStream()
-    ZipOutputStream(buffer).use { zip ->
-        entries.forEach { (path, bytes) ->
+/** Streams [entries] (path to a lazily-opened content stream) into [output] as one zip archive. */
+fun writeZip(output: OutputStream, entries: List<Pair<String, () -> InputStream>>) {
+    ZipOutputStream(output).use { zip ->
+        entries.forEach { (path, open) ->
             zip.putNextEntry(ZipEntry(path))
-            zip.write(bytes)
+            open().use { it.copyTo(zip) }
             zip.closeEntry()
         }
     }
-    return buffer.toByteArray()
 }

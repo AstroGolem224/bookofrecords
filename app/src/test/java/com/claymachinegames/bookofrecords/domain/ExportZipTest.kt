@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.util.zip.ZipInputStream
 
 class ExportZipTest {
@@ -21,25 +22,27 @@ class ExportZipTest {
     }
 
     @Test
-    fun buildZipRoundTripsSingleEntry() {
-        val zipped = buildZip(listOf("2026-07-08/a.m4a" to "audio-bytes".toByteArray()))
+    fun writeZipRoundTripsSingleEntry() {
+        val output = ByteArrayOutputStream()
 
-        val read = readZip(zipped)
+        writeZip(output, listOf("2026-07-08/a.m4a" to { ByteArrayInputStream("audio-bytes".toByteArray()) }))
 
+        val read = readZip(output.toByteArray())
         assertEquals(setOf("2026-07-08/a.m4a"), read.keys)
         assertEquals("audio-bytes", read["2026-07-08/a.m4a"])
     }
 
     @Test
-    fun buildZipRoundTripsMultipleEntriesWithDateGroupPrefixedPaths() {
-        val zipped = buildZip(listOf(
-            "2026-07-08/a.m4a" to "audio-a".toByteArray(),
-            "2026-07-08/a.json" to "{}".toByteArray(),
-            "2026-07-07/b.m4a" to "audio-b".toByteArray(),
+    fun writeZipRoundTripsMultipleEntriesWithDateGroupPrefixedPaths() {
+        val output = ByteArrayOutputStream()
+
+        writeZip(output, listOf(
+            "2026-07-08/a.m4a" to { ByteArrayInputStream("audio-a".toByteArray()) },
+            "2026-07-08/a.json" to { ByteArrayInputStream("{}".toByteArray()) },
+            "2026-07-07/b.m4a" to { ByteArrayInputStream("audio-b".toByteArray()) },
         ))
 
-        val read = readZip(zipped)
-
+        val read = readZip(output.toByteArray())
         assertEquals(3, read.size)
         assertEquals("audio-a", read["2026-07-08/a.m4a"])
         assertEquals("{}", read["2026-07-08/a.json"])
@@ -47,9 +50,11 @@ class ExportZipTest {
     }
 
     @Test
-    fun buildZipOnEmptyListProducesValidEmptyZip() {
-        val zipped = buildZip(emptyList())
+    fun writeZipOnEmptyListProducesValidEmptyZip() {
+        val output = ByteArrayOutputStream()
 
-        assertTrue(readZip(zipped).isEmpty())
+        writeZip(output, emptyList())
+
+        assertTrue(readZip(output.toByteArray()).isEmpty())
     }
 }
