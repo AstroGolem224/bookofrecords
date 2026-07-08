@@ -21,6 +21,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -36,4 +41,5 @@ dependencies {
     // Uri.EMPTY is a real null under the unit-test android.jar (not a throwing stub) —
     // any non-null Uri field needs a mock instead.
     testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.robolectric:robolectric:4.13")
 }
