@@ -56,8 +56,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.claymachinegames.bookofrecords.data.LibraryStore
 import com.claymachinegames.bookofrecords.data.RecordingEntry
-import com.claymachinegames.bookofrecords.data.RecordingRepository
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.formatMs
 import com.claymachinegames.bookofrecords.domain.sanitizeTitle
@@ -71,7 +71,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Composable
-fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -> Unit) {
+fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val metaWriter = remember { Dispatchers.IO.limitedParallelism(1) }
@@ -106,7 +106,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
         }
     }
     LaunchedEffect(Unit) {
-        meta = withContext(Dispatchers.IO) { entry.metaUri?.let { repo.readMeta(it) } }
+        meta = withContext(Dispatchers.IO) { entry.metaUri?.let { store.readMeta(it) } }
             ?: RecordingMeta(file = "${entry.baseName}.m4a", startedAt = "",
                              durationMs = entry.durationMs)
     }
@@ -118,7 +118,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
     fun saveMeta(updated: RecordingMeta) {
         meta = updated
         entry.metaUri?.let { uri ->
-            scope.launch(metaWriter) { runCatching { repo.writeMeta(uri, updated) } }
+            scope.launch(metaWriter) { runCatching { store.writeMeta(uri, updated) } }
         }
     }
     fun setLabel(index: Int, label: String, type: String) {
@@ -252,7 +252,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
         ) {
             TextButton(onClick = {
                 meta?.let { m ->
-                    val uri = repo.exportLabels(entry, m)
+                    val uri = store.exportLabels(entry, m)
                     Toast.makeText(context, "Exportiert: $uri", Toast.LENGTH_SHORT).show()
                 }
             }) { Text(".txt", color = Bor.textSecondary, fontFamily = FontFamily.Monospace) }
@@ -304,7 +304,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
                 TextButton(onClick = {
                     playing = false
                     player.release()
-                    repo.delete(entry)
+                    store.delete(entry)
                     onClose()
                 }) { Text("Löschen", color = Bor.accent) }
             },
@@ -328,7 +328,7 @@ fun DetailScreen(repo: RecordingRepository, entry: RecordingEntry, onClose: () -
                     val newBase = if (isBoR) withTitle(entry.baseName, renameText)
                                   else sanitizeTitle(renameText)
                     if (newBase.isNotEmpty() && newBase != entry.baseName) {
-                        runCatching { repo.rename(entry, newBase) }.onFailure {
+                        runCatching { store.rename(entry, newBase) }.onFailure {
                             Toast.makeText(context, "Umbenennen fehlgeschlagen",
                                 Toast.LENGTH_SHORT).show()
                         }

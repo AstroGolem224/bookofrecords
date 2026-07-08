@@ -16,9 +16,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,7 +49,7 @@ import com.claymachinegames.bookofrecords.record.RecorderState
 import kotlinx.coroutines.delay
 
 @Composable
-fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit) {
+fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
     val state by RecorderState.state.collectAsState()
     fun send(action: String) {
@@ -62,7 +66,12 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit) {
     ) {
         when (val s = state) {
             is RecState.Idle -> {
-                Spacer(Modifier.height(120.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.textMuted)
+                    }
+                }
+                Spacer(Modifier.height(72.dp))
                 Text("BookofRecords", color = Bor.textPrimary,
                     style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.height(48.dp))

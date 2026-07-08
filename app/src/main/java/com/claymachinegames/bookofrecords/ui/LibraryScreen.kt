@@ -13,21 +13,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.claymachinegames.bookofrecords.data.LibraryStore
+import com.claymachinegames.bookofrecords.data.LibraryUnavailableException
 import com.claymachinegames.bookofrecords.data.RecordingEntry
-import com.claymachinegames.bookofrecords.data.RecordingRepository
 import com.claymachinegames.bookofrecords.domain.formatMs
 import com.claymachinegames.bookofrecords.domain.titlePartOf
 import kotlinx.coroutines.Dispatchers
@@ -35,24 +42,47 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun LibraryScreen(
-    repo: RecordingRepository,
+    store: LibraryStore,
     onOpen: (RecordingEntry) -> Unit,
     onNewRecording: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onSweep: suspend () -> Unit,
 ) {
     var entries by remember { mutableStateOf<List<RecordingEntry>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
+    var unreachable by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        entries = withContext(Dispatchers.IO) { repo.list() }
+    LaunchedEffect(store) {
+        loaded = false
+        unreachable = false
+        onSweep()
+        runCatching {
+            withContext(Dispatchers.IO) { store.list() }
+        }.onSuccess {
+            entries = it
+        }.onFailure { e ->
+            if (e is LibraryUnavailableException) unreachable = true else throw e
+        }
         loaded = true
     }
 
     val groups = entries.groupBy { it.dateGroup }.entries.sortedByDescending { it.key }
 
     Column(Modifier.fillMaxSize().background(Bor.bg).padding(16.dp)) {
-        Text("Bibliothek", color = Bor.textPrimary,
-            style = MaterialTheme.typography.headlineSmall)
-        if (loaded && entries.isEmpty()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Bibliothek", color = Bor.textPrimary,
+                style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.textMuted)
+            }
+        }
+        if (unreachable) {
+            Column(Modifier.padding(top = 24.dp)) {
+                Text("Speicherordner nicht erreichbar", color = Bor.accent, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onOpenSettings) { Text("Zu den Einstellungen", color = Bor.textSecondary) }
+            }
+        } else if (loaded && entries.isEmpty()) {
             Text("Noch keine Aufnahmen.", color = Bor.textSecondary,
                 modifier = Modifier.padding(top = 24.dp))
         }
