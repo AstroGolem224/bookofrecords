@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/logo.png" width="240" alt="BookofRecords logo"></p>
+
 # BookofRecords
 
 Android voice recorder for later transcription. Records AAC/M4A with
@@ -5,20 +7,23 @@ tap-to-mark timestamps (speaker changes, notes).
 
 ## Output
 
-`Documents/BookofRecords/` on device:
+`Documents/BookofRecords/YYYY-MM-DD/` on device:
 
-- `2026-07-07_193000.m4a` — mono AAC, 44.1 kHz, 96 kbps
-- `2026-07-07_193000.json` — sidecar metadata:
+- `2026-07-08_19-30_BoR_Session43.m4a` — mono AAC, 44.1 kHz, 96 kbps
+- `2026-07-08_19-30_BoR_Session43.json` — sidecar metadata:
 
 ```json
 {
   "version": 1,
-  "file": "2026-07-07_193000.m4a",
-  "startedAt": "2026-07-07T19:30:12+02:00",
+  "file": "2026-07-08_19-30_BoR_Session43.m4a",
+  "startedAt": "2026-07-08T19:30:12+02:00",
   "durationMs": 5423000,
   "markers": [{ "timeMs": 754000, "type": "speaker", "label": "Matthias" }]
 }
 ```
+
+The title (`Session43` above) is set in-app while recording, or renamed
+afterwards — both files stay in sync.
 
 - `<name>.labels.txt` — optional Audacity label track export (tab-separated).
 

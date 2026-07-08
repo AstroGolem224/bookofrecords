@@ -274,7 +274,7 @@ class RecorderService : Service() {
         )
         val markerCount = meta?.markers?.size ?: 0
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(if (paused) "Pausiert" else "Aufnahme läuft")
             .setContentText("${formatMs(clock.elapsedMs())} · $markerCount Marker")
             .setContentIntent(contentIntent)
