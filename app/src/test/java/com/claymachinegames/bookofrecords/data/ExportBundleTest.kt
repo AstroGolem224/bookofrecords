@@ -16,6 +16,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.ZipInputStream
 
@@ -43,8 +44,17 @@ class ExportBundleTest {
         library = SafLibrary(context, FakeDocumentsProvider.treeUri())
     }
 
+    private fun namesIn(zipBytes: ByteArray): Set<String> {
+        val names = mutableSetOf<String>()
+        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zip ->
+            var e = zip.nextEntry
+            while (e != null) { names.add(e.name); e = zip.nextEntry }
+        }
+        return names
+    }
+
     @Test
-    fun exportZipBytesBundlesAudioJsonAndLabelsPerEntry() = runBlocking {
+    fun exportZipBundlesAudioJsonAndLabelsPerEntry() = runBlocking {
         val dir = File(tempFolder.root, "2026-07-08").apply { mkdirs() }
         File(dir, "a.m4a").writeText("audio-bytes")
         val meta = RecordingMeta(
@@ -54,21 +64,17 @@ class ExportBundleTest {
         File(dir, "a.json").writeText(meta.toJson())
         val entry = library.list().first()
 
-        val zipBytes = exportZipBytes(context, library, listOf(entry))
+        val output = ByteArrayOutputStream()
+        exportZip(context, library, listOf(entry), output)
 
-        val names = mutableSetOf<String>()
-        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zip ->
-            var e = zip.nextEntry
-            while (e != null) { names.add(e.name); e = zip.nextEntry }
-        }
         assertEquals(
             setOf("2026-07-08/a.m4a", "2026-07-08/a.json", "2026-07-08/a.labels.txt"),
-            names,
+            namesIn(output.toByteArray()),
         )
     }
 
     @Test
-    fun exportZipBytesBundlesMultipleEntriesUnderTheirOwnDateGroups() = runBlocking {
+    fun exportZipBundlesMultipleEntriesUnderTheirOwnDateGroups() = runBlocking {
         val dirA = File(tempFolder.root, "2026-07-08").apply { mkdirs() }
         File(dirA, "a.m4a").writeText("audio-a")
         File(dirA, "a.json").writeText(RecordingMeta(file = "a.m4a", startedAt = "x").toJson())
@@ -78,36 +84,28 @@ class ExportBundleTest {
         val entries = library.list()
         assertEquals(2, entries.size)
 
-        val zipBytes = exportZipBytes(context, library, entries)
+        val output = ByteArrayOutputStream()
+        exportZip(context, library, entries, output)
 
-        val names = mutableSetOf<String>()
-        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zip ->
-            var e = zip.nextEntry
-            while (e != null) { names.add(e.name); e = zip.nextEntry }
-        }
         assertEquals(
             setOf(
                 "2026-07-08/a.m4a", "2026-07-08/a.json", "2026-07-08/a.labels.txt",
                 "2026-07-07/b.m4a", "2026-07-07/b.json", "2026-07-07/b.labels.txt",
             ),
-            names,
+            namesIn(output.toByteArray()),
         )
     }
 
     @Test
-    fun exportZipBytesSkipsJsonAndLabelsWhenEntryHasNoMetaFile() = runBlocking {
+    fun exportZipSkipsJsonAndLabelsWhenEntryHasNoMetaFile() = runBlocking {
         val dir = File(tempFolder.root, "2026-07-08").apply { mkdirs() }
         File(dir, "a.m4a").writeText("audio-bytes")
         // no a.json written — entry.metaUri will be null
         val entry = library.list().first()
 
-        val zipBytes = exportZipBytes(context, library, listOf(entry))
+        val output = ByteArrayOutputStream()
+        exportZip(context, library, listOf(entry), output)
 
-        val names = mutableSetOf<String>()
-        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zip ->
-            var e = zip.nextEntry
-            while (e != null) { names.add(e.name); e = zip.nextEntry }
-        }
-        assertEquals(setOf("2026-07-08/a.m4a"), names)
+        assertEquals(setOf("2026-07-08/a.m4a"), namesIn(output.toByteArray()))
     }
 }

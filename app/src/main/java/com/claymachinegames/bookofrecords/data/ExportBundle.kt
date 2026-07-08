@@ -1,23 +1,26 @@
 package com.claymachinegames.bookofrecords.data
 
 import android.content.Context
-import com.claymachinegames.bookofrecords.domain.buildZip
+import com.claymachinegames.bookofrecords.domain.writeZip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.io.OutputStream
 
-/** Bundles [entries]' audio + JSON + Audacity labels into one zip's raw bytes. */
-suspend fun exportZipBytes(context: Context, store: LibraryStore, entries: List<RecordingEntry>): ByteArray =
+/** Streams [entries]' audio + JSON + Audacity labels into [output] as one zip archive. */
+suspend fun exportZip(context: Context, store: LibraryStore, entries: List<RecordingEntry>, output: OutputStream) =
     withContext(Dispatchers.IO) {
         val zipEntries = entries.flatMap { entry ->
-            val audioBytes = context.contentResolver.openInputStream(entry.audioUri)!!.use { it.readBytes() }
             val meta = entry.metaUri?.let { store.readMeta(it) }
             buildList {
-                add("${entry.dateGroup}/${entry.baseName}.m4a" to audioBytes)
+                add("${entry.dateGroup}/${entry.baseName}.m4a" to { context.contentResolver.openInputStream(entry.audioUri)!! })
                 meta?.let {
-                    add("${entry.dateGroup}/${entry.baseName}.json" to it.toJson().toByteArray())
-                    add("${entry.dateGroup}/${entry.baseName}.labels.txt" to it.toAudacityLabels().toByteArray())
+                    val json = it.toJson().toByteArray()
+                    val labels = it.toAudacityLabels().toByteArray()
+                    add("${entry.dateGroup}/${entry.baseName}.json" to { ByteArrayInputStream(json) })
+                    add("${entry.dateGroup}/${entry.baseName}.labels.txt" to { ByteArrayInputStream(labels) })
                 }
             }
         }
-        buildZip(zipEntries)
+        writeZip(output, zipEntries)
     }
