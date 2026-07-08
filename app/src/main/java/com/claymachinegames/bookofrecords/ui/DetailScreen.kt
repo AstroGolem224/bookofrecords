@@ -86,7 +86,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
     var showDelete by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
     var showNewChip by remember { mutableStateOf(false) }
-    var showDeleteMarker by remember { mutableStateOf(false) }
+    var deleteMarkerIndex by remember { mutableStateOf<Int?>(null) }
 
     val displayTitle = titlePartOf(entry.baseName)?.takeIf { it.isNotEmpty() } ?: entry.baseName
     var renameText by remember {
@@ -222,10 +222,12 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
+                            // select(i) on the already-selected row toggles it closed, which
+                            // commits the pending edit first — see MarkerEditor.select().
                             TextButton(onClick = { editor.select(i) }) {
                                 Text("Speichern", color = Bor.accent)
                             }
-                            IconButton(onClick = { showDeleteMarker = true }) {
+                            IconButton(onClick = { deleteMarkerIndex = i }) {
                                 Icon(Icons.Filled.Delete, "Marker löschen", tint = Bor.textMuted)
                             }
                         }
@@ -282,20 +284,21 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
         )
     }
 
-    if (showDeleteMarker) {
-        val label = editor.meta?.markers?.getOrNull(editor.selected)?.label?.ifEmpty { "(unbenannt)" } ?: ""
+    if (deleteMarkerIndex != null) {
+        val index = deleteMarkerIndex!!
+        val label = editor.meta?.markers?.getOrNull(index)?.label?.ifEmpty { "(unbenannt)" } ?: ""
         AlertDialog(
-            onDismissRequest = { showDeleteMarker = false },
+            onDismissRequest = { deleteMarkerIndex = null },
             containerColor = Bor.surface,
             title = { Text("Marker löschen?", color = Bor.textPrimary) },
             text = { Text(label, color = Bor.textSecondary) },
             confirmButton = {
                 TextButton(onClick = {
-                    editor.deleteMarker(editor.selected)
-                    showDeleteMarker = false
+                    editor.deleteMarker(index)
+                    deleteMarkerIndex = null
                 }) { Text("Löschen", color = Bor.accent) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteMarker = false }) {
+            dismissButton = { TextButton(onClick = { deleteMarkerIndex = null }) {
                 Text("Abbrechen", color = Bor.textSecondary) } },
         )
     }
