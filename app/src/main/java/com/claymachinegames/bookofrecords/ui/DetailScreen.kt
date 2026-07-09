@@ -90,7 +90,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
 
     val displayTitle = titlePartOf(entry.baseName)?.takeIf { it.isNotEmpty() } ?: entry.baseName
     var renameText by remember {
-        mutableStateOf(titlePartOf(entry.baseName) ?: entry.baseName)
+        mutableStateOf(titlePartOf(entry.baseName)?.takeIf { it.isNotEmpty() } ?: entry.baseName)
     }
 
     val player = remember {
