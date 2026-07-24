@@ -99,14 +99,17 @@ fun DbMeter(level: Float, modifier: Modifier = Modifier) {
 fun DbScale(modifier: Modifier = Modifier) {
     var widthPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    Box(modifier = modifier.fillMaxWidth().height(14.dp).onSizeChanged { widthPx = it.width }) {
-        listOf(-36, -24, -12, 0).forEach { db ->
+    Box(modifier = modifier.fillMaxWidth().height(16.dp).onSizeChanged { widthPx = it.width }) {
+        listOf(-36, -24, -12).forEach { db ->
             val xDp = with(density) { (widthPx * dbTickFraction(db)).toDp() }
-            Text(if (db == 0) "0 dB" else "$db",
+            Text("$db",
                 color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp,
                 modifier = Modifier.align(Alignment.CenterStart)
-                    .padding(start = (xDp - if (db == 0) 24.dp else 8.dp).coerceAtLeast(0.dp)))
+                    .padding(start = (xDp - 8.dp).coerceAtLeast(0.dp)))
         }
+        // 0-dB-Tick liegt bei Fraction 1.0 → rechtsbündig, damit "dB" nie abgeschnitten wird
+        Text("0 dB", color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+            modifier = Modifier.align(Alignment.CenterEnd))
     }
 }
 
@@ -140,16 +143,17 @@ fun RecordButtonRow(
             modifier = Modifier.size(64.dp).background(Bor.surface, CircleShape)) {
             Box(Modifier.size(18.dp).background(Bor.textPrimary, RoundedCornerShape(3.dp)))
         }
+        // Mockup: amberfarbener Pause-Ring; Record-Punkt (fortsetzen) bleibt rot
         IconButton(onClick = onPauseResume,
             modifier = Modifier.size(96.dp)
                 .background(Bor.surface, CircleShape)
-                .border(3.dp, Bor.accent, CircleShape)) {
+                .border(3.dp, Bor.amber, CircleShape)) {
             if (paused) Box(Modifier.size(28.dp).background(Bor.accent, CircleShape))
             else Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Box(Modifier.width(8.dp).height(28.dp)
-                    .background(Bor.accent, RoundedCornerShape(2.dp)))
+                    .background(Bor.amber, RoundedCornerShape(2.dp)))
                 Box(Modifier.width(8.dp).height(28.dp)
-                    .background(Bor.accent, RoundedCornerShape(2.dp)))
+                    .background(Bor.amber, RoundedCornerShape(2.dp)))
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

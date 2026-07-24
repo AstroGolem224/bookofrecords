@@ -19,6 +19,8 @@ object Bor {
     val levelYellow = Color(0xFFC9C930)
     val levelOrange = Color(0xFFE07030)
     val waveCold = Color(0xFF4FC3F7)
+    val amber = Color(0xFFF5A623)     // Mockup: Pause-Ring, HIDE
+    val teal = Color(0xFF3EC8CE)      // Mockup: Format-Chip
     val textPrimary = Color(0xFFF2F2F4)
     val textSecondary = Color(0xFF9A9A9E)
     val textMuted = Color(0xFF5A5A5E)

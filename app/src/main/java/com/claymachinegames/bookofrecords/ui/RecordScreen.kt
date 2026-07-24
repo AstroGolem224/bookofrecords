@@ -162,10 +162,10 @@ fun RecordScreen(
                 DbScale()
                 Spacer(Modifier.height(10.dp))
 
-                Text("M4A · 96 kbps · mono", color = Bor.textSecondary,
+                Text("M4A · 96 kbps · mono", color = Bor.teal,
                     fontFamily = FontFamily.Monospace, fontSize = 12.sp,
                     modifier = Modifier
-                        .border(1.dp, Bor.border, RoundedCornerShape(50))
+                        .border(1.dp, Bor.teal.copy(alpha = 0.5f), RoundedCornerShape(50))
                         .padding(horizontal = 14.dp, vertical = 5.dp))
                 Spacer(Modifier.height(14.dp))
 
@@ -212,9 +212,9 @@ private fun RecHeader(paused: Boolean, onHide: () -> Unit) {
             fontFamily = FontFamily.Monospace, fontSize = 12.sp)
         Spacer(Modifier.weight(1f))
         // dezente HIDE-Pill im freien Header-Slot (statt unter den Buttons: kein Überlauf bei IME)
-        Text("HIDE", color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+        Text("HIDE", color = Bor.amber, fontFamily = FontFamily.Monospace, fontSize = 11.sp,
             modifier = Modifier
-                .border(1.dp, Bor.border, RoundedCornerShape(50))
+                .border(1.dp, Bor.amber.copy(alpha = 0.5f), RoundedCornerShape(50))
                 .clickable(onClick = onHide)
                 .padding(horizontal = 12.dp, vertical = 4.dp))
     }
