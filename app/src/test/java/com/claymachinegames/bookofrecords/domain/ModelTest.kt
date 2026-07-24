@@ -106,6 +106,15 @@ class ModelTest {
     }
 
     @Test
+    fun pseudoPeaksAreDeterministicBoundedAndSized() {
+        val first = pseudoPeaks("content://aufnahme/42", 104)
+        assertEquals(first, pseudoPeaks("content://aufnahme/42", 104))
+        assertEquals(104, first.size)
+        assertEquals(true, first.all { it in 0f..1f })
+        assertEquals(emptyList<Float>(), pseudoPeaks("egal", 0))
+    }
+
+    @Test
     fun dbTickFractionMatchesLevelScale() {
         assertEquals(1f, dbTickFraction(0), 0.001f)
         assertEquals(0.0039f, dbTickFraction(-60), 0.001f)

@@ -142,3 +142,23 @@ Diff vollständig gelesen (3 Dateien, +548/−156): spec-treu, Recording-Zweig/a
 Bereiche unangetastet, keine neuen Dependencies, Callbacks erhalten, Tokens nur ergänzt.
 Proof selbst ausgeführt: testDebugUnitTest + assembleDebug BUILD SUCCESSFUL.
 Geräte-Screenshot ausstehend (Handy getrennt). Blur-Deviation akzeptiert.
+
+---
+
+# Act 3 — Build (Library/Player-Spec)
+
+## Round 1 — Codex build
+Codex (gpt-5.6-sol, --yolo) implementierte PLAN.md + DESIGN_SPEC_LIBRARY_PLAYER.md:
+Library (Glass-Header/Suche/Chips/Waveform-Cards/Long-Press-Selection/Batch-Dock ZIP+Löschen),
+Player (Hero-Waveform mit Scrubbing, Playhead, ±30s, Playback-Cluster, Marker-Rows,
+Teilen/Löschen-Dock mit Bestätigung), pseudoPeaks + Test, Tokens ergänzt, GlassSurface/Fonts
+public. Deviations: kein echtes Backdrop-Blur (Vorgabe-konform), Mikroanimationen nicht
+vollständig generalisiert, kein Geräte-Screenshot (kein Device in Sandbox).
+
+### Claude's verdict
+Proof selbst ausgeführt: testDebugUnitTest + assembleDebug grün. Diff-Review an
+cavecrew-reviewer delegiert (45 Tool-Calls): ALLE Verhaltens-Erhaltungen aus PLAN.md
+verifiziert (Load-Gating, Selection-Semantik, Rename-Fix, Zip, Sweep-vor-List,
+Metadaten-Format ohne ◆, MediaPlayer-Lifecycle, Marker-CRUD, Delete-Bestätigung),
+neue Features korrekt (Batch-Delete mit Fehlerbehandlung, Scrubbing geclampt, ±30s
+geclampt, pseudoPeaks deterministisch). Keine Findings. Geräte-Sichttest ausstehend.

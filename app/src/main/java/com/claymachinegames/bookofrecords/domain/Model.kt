@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.random.Random
 import kotlin.math.log10
 
 @Serializable
@@ -82,6 +83,19 @@ fun levelFraction(maxAmplitude: Int): Float {
 fun appendLevel(history: List<Float>, level: Float, cap: Int): List<Float> {
     if (cap <= 0) return emptyList()
     return (history + level).takeLast(cap)
+}
+
+/**
+ * Stabile Ersatz-Peaks für Aufnahmen ohne dekodierte Audiodaten.
+ * Derselbe Datei-Schlüssel liefert immer dieselbe Folge im Bereich 0..1.
+ */
+fun pseudoPeaks(seed: String, count: Int): List<Float> {
+    if (count <= 0) return emptyList()
+    val random = Random(seed.fold(0x4D595DF4) { hash, char -> hash * 31 + char.code })
+    return List(count) {
+        // Etwas Grundhöhe hält auch sehr leise Balken im Glas sichtbar.
+        (random.nextFloat() * 0.82f + random.nextFloat() * 0.18f).coerceIn(0f, 1f)
+    }
 }
 
 /** Position eines dB-Ticks auf der log-Skala von [levelFraction] (Umkehrung: x = 10^(dB/20)). */

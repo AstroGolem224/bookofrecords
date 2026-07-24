@@ -228,9 +228,9 @@ private fun ButtonRowPreview() {
 
 // ---------- Idle-Screen: feste 412-dp-Komposition ----------
 
-private const val ReferencePxPerDp = 2.067961f
-private val BebasNeue = FontFamily(Font(R.font.bebas_neue))
-private val BarlowSemiCondensed = FontFamily(Font(R.font.barlow_semi_condensed_medium))
+const val ReferencePxPerDp = 2.067961f
+val BebasNeue = FontFamily(Font(R.font.bebas_neue))
+val BarlowSemiCondensed = FontFamily(Font(R.font.barlow_semi_condensed_medium))
 
 private val IdleBarHalfHeightsPx = floatArrayOf(
     12f, 37f, 31f, 41f, 54f, 38f, 24f, 29f, 35f, 34f, 22f, 15f, 33f, 24f,
@@ -385,7 +385,7 @@ fun WaveLogo(scale: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun GlassSurface(
+fun GlassSurface(
     scale: Float,
     radiusDp: Float,
     modifier: Modifier = Modifier,
