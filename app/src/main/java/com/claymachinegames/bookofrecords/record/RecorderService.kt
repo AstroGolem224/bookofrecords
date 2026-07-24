@@ -26,6 +26,7 @@ import com.claymachinegames.bookofrecords.domain.Marker
 import com.claymachinegames.bookofrecords.domain.MarkerClock
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.dateFolder
+import com.claymachinegames.bookofrecords.domain.downsamplePeaks
 import com.claymachinegames.bookofrecords.domain.levelFraction
 import com.claymachinegames.bookofrecords.domain.recordingBaseName
 import com.claymachinegames.bookofrecords.domain.sanitizeTitle
@@ -66,6 +67,7 @@ class RecorderService : Service() {
     private var startedLocal: LocalDateTime? = null
     private var title = ""
     private var level = 0f
+    private val peakSamples = ArrayList<Float>()
     private var paused = false
     private val clock = MarkerClock(SystemClock::elapsedRealtime)
     private var wakeLock: PowerManager.WakeLock? = null
@@ -164,13 +166,19 @@ class RecorderService : Service() {
             paused = false
             title = ""
             level = 0f
+            peakSamples.clear()
             clock.start()
 
             ticker = scope.launch {
                 var i = 0
                 while (true) {
-                    level = if (paused) 0f
-                            else runCatching { levelFraction(recorder?.maxAmplitude ?: 0) }.getOrDefault(0f)
+                    level = if (paused) {
+                        0f
+                    } else {
+                        runCatching { levelFraction(recorder?.maxAmplitude ?: 0) }
+                            .getOrDefault(0f)
+                            .also { peakSamples.add(it) }
+                    }
                     publishState()
                     if (i % 4 == 0) updateNotification()
                     i++
@@ -222,7 +230,10 @@ class RecorderService : Service() {
         ticker?.cancel()
         val stopped = runCatching { recorder?.stop() }.isSuccess
         recorder?.release(); recorder = null
-        meta = meta?.copy(durationMs = clock.elapsedMs())
+        meta = meta?.copy(
+            durationMs = clock.elapsedMs(),
+            peaks = downsamplePeaks(peakSamples, 104),
+        )
         clock.stop()
         files?.let { f ->
             if (stopped) {
@@ -242,6 +253,7 @@ class RecorderService : Service() {
             }
         }
         fd = null; files = null; meta = null; paused = false
+        peakSamples.clear()
         wakeLock?.let { if (it.isHeld) it.release() }
         RecorderState.state.value = RecState.Idle
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)

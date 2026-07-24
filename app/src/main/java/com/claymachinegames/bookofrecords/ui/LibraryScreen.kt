@@ -74,6 +74,7 @@ import com.claymachinegames.bookofrecords.data.RecordingEntry
 import com.claymachinegames.bookofrecords.data.exportZip
 import com.claymachinegames.bookofrecords.domain.DateFilter
 import com.claymachinegames.bookofrecords.domain.dateFolder
+import com.claymachinegames.bookofrecords.domain.downsamplePeaks
 import com.claymachinegames.bookofrecords.domain.formatMs
 import com.claymachinegames.bookofrecords.domain.matchesLibraryFilter
 import com.claymachinegames.bookofrecords.domain.pseudoPeaks
@@ -533,7 +534,10 @@ private fun EntryCard(
         "Dauer ${formatMs(entry.durationMs)}",
         "${entry.markerCount}",
     ).joinToString(" · ")
-    val peaks = remember(entry.baseName) { pseudoPeaks(entry.baseName, 34) }
+    val peaks = remember(entry.audioUri, entry.peaks) {
+        if (entry.peaks.isNotEmpty()) downsamplePeaks(entry.peaks, 34)
+        else pseudoPeaks(entry.baseName, 34)
+    }
     val interaction = remember { MutableInteractionSource() }
 
     GlassSurface(

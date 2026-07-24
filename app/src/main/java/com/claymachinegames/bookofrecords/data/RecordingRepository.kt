@@ -19,6 +19,7 @@ data class RecordingEntry(
     val durationMs: Long,
     val markerCount: Int,
     val dateGroup: String,     // "2026-07-08" — aus Ordnername, Fallback DATE_ADDED
+    val peaks: List<Float> = emptyList(),
 )
 
 class RecordingRepository(private val context: Context) : LibraryStore {
@@ -129,6 +130,7 @@ class RecordingRepository(private val context: Context) : LibraryStore {
                 markerCount = meta?.markers?.size ?: 0,
                 dateGroup = folderDate ?: java.time.Instant.ofEpochSecond(row.added)
                     .atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString(),
+                peaks = meta?.peaks.orEmpty(),
             )
         }.sortedByDescending { it.addedAtEpochSec }
     }

@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.claymachinegames.bookofrecords.data.LibraryStore
+import com.claymachinegames.bookofrecords.data.PeakExtractor
 import com.claymachinegames.bookofrecords.data.RecordingEntry
 import com.claymachinegames.bookofrecords.domain.RecordingMeta
 import com.claymachinegames.bookofrecords.domain.formatMs
@@ -71,6 +72,8 @@ import com.claymachinegames.bookofrecords.domain.pseudoPeaks
 import com.claymachinegames.bookofrecords.domain.sanitizeTitle
 import com.claymachinegames.bookofrecords.domain.titlePartOf
 import com.claymachinegames.bookofrecords.domain.withTitle
+import com.claymachinegames.bookofrecords.record.RecState
+import com.claymachinegames.bookofrecords.record.RecorderState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -105,7 +108,10 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
     var renameText by remember {
         mutableStateOf(titlePartOf(entry.baseName)?.takeIf { it.isNotEmpty() } ?: entry.baseName)
     }
-    val peaks = remember(entry.audioUri) { pseudoPeaks(entry.audioUri.toString(), 104) }
+    val fallbackPeaks = remember(entry.audioUri) { pseudoPeaks(entry.audioUri.toString(), 104) }
+    val peaks = editor.meta?.peaks?.takeIf { it.isNotEmpty() }
+        ?: entry.peaks.takeIf { it.isNotEmpty() }
+        ?: fallbackPeaks
 
     val player = remember {
         runCatching {
@@ -137,6 +143,21 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
             durationMs = entry.durationMs,
         )
         editor.updateMeta(loaded)
+        if (loaded.peaks.isEmpty() && RecorderState.state.value is RecState.Idle) {
+            entry.metaUri?.let { metaUri ->
+                scope.launch {
+                    PeakExtractor.extractPeaks(context, entry.audioUri)?.let { extracted ->
+                        // Marker können während des Decodes geändert werden: immer den neuesten
+                        // Meta-Stand ergänzen, damit der Backfill nichts überschreibt.
+                        val updated = (editor.meta ?: loaded).copy(peaks = extracted)
+                        editor.updateMeta(updated)
+                        withContext(metaWriter) {
+                            runCatching { store.writeMeta(metaUri, updated) }
+                        }
+                    }
+                }
+            }
+        }
     }
     if (player == null) return
 

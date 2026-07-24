@@ -43,6 +43,7 @@ class SafLibrary(private val context: Context, private val treeUri: Uri) : Libra
                     durationMs = meta?.durationMs?.takeIf { it > 0 } ?: probeDuration(audio.uri),
                     markerCount = meta?.markers?.size ?: 0,
                     dateGroup = dir.name!!,
+                    peaks = meta?.peaks.orEmpty(),
                 )
             }
         }.sortedByDescending { it.addedAtEpochSec }

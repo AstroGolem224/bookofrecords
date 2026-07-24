@@ -7,6 +7,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.random.Random
 import kotlin.math.log10
+import kotlin.math.round
+import kotlin.math.roundToInt
 
 @Serializable
 data class Marker(
@@ -22,6 +24,7 @@ data class RecordingMeta(
     val startedAt: String,
     val durationMs: Long = 0,
     val markers: List<Marker> = emptyList(),
+    val peaks: List<Float> = emptyList(),
 ) {
     fun toJson(): String = json.encodeToString(serializer(), this)
 
@@ -83,6 +86,38 @@ fun levelFraction(maxAmplitude: Int): Float {
 fun appendLevel(history: List<Float>, level: Float, cap: Int): List<Float> {
     if (cap <= 0) return emptyList()
     return (history + level).takeLast(cap)
+}
+
+/**
+ * Verdichtet Amplituden per Maximum und normalisiert das lauteste Bucket auf 1.
+ * Kurze Folgen werden per nächstem Index auf [buckets] aufgefüllt, nicht interpoliert.
+ */
+fun downsamplePeaks(samples: List<Float>, buckets: Int): List<Float> {
+    if (samples.isEmpty() || buckets <= 0) return emptyList()
+
+    val bucketPeaks = if (samples.size <= buckets) {
+        if (buckets == 1) {
+            listOf(samples.maxOrNull() ?: 0f)
+        } else {
+            List(buckets) { bucket ->
+                val index = (bucket.toFloat() * (samples.lastIndex) / (buckets - 1)).roundToInt()
+                samples[index]
+            }
+        }
+    } else {
+        List(buckets) { bucket ->
+            val start = bucket * samples.size / buckets
+            val end = (bucket + 1) * samples.size / buckets
+            samples.subList(start, end).maxOrNull() ?: 0f
+        }
+    }
+    val maximum = bucketPeaks.maxOrNull()?.coerceAtLeast(0f) ?: 0f
+    if (maximum == 0f) return List(buckets) { 0f }
+
+    return bucketPeaks.map { peak ->
+        val normalized = (peak.coerceAtLeast(0f) / maximum).coerceIn(0.02f, 1f)
+        (round(normalized * 10_000f) / 10_000f)
+    }
 }
 
 /**

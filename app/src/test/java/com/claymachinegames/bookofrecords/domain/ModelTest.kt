@@ -14,6 +14,7 @@ class ModelTest {
             Marker(timeMs = 12_500, type = "speaker", label = "Matthias"),
             Marker(timeMs = 754_000),
         ),
+        peaks = listOf(0.02f, 0.4567f, 1f),
     )
 
     @Test
@@ -25,7 +26,9 @@ class ModelTest {
     fun fromJsonToleratesUnknownFields() {
         val json = """{"version":1,"file":"a.m4a","startedAt":"x","durationMs":0,
             "markers":[],"futureField":42}"""
-        assertEquals("a.m4a", RecordingMeta.fromJson(json).file)
+        val parsed = RecordingMeta.fromJson(json)
+        assertEquals("a.m4a", parsed.file)
+        assertEquals(emptyList<Float>(), parsed.peaks)
     }
 
     @Test
@@ -112,6 +115,53 @@ class ModelTest {
         assertEquals(104, first.size)
         assertEquals(true, first.all { it in 0f..1f })
         assertEquals(emptyList<Float>(), pseudoPeaks("egal", 0))
+    }
+
+    @Test
+    fun downsamplePeaksUsesBucketMaximumAndNormalizesGlobally() {
+        assertEquals(
+            listOf(1f, 0.4444f),
+            downsamplePeaks(listOf(0.1f, 0.9f, 0.2f, 0.4f), buckets = 2),
+        )
+    }
+
+    @Test
+    fun downsamplePeaksReturnsRequestedBucketCount() {
+        val result = downsamplePeaks((1..200).map { it.toFloat() }, buckets = 104)
+        assertEquals(104, result.size)
+        assertEquals(1f, result.maxOrNull())
+    }
+
+    @Test
+    fun downsamplePeaksAppliesFloorAndFourDecimalRounding() {
+        assertEquals(
+            listOf(0.02f, 0.3333f, 1f),
+            downsamplePeaks(listOf(0.001f, 1f / 3f, 1f), buckets = 3),
+        )
+    }
+
+    @Test
+    fun downsamplePeaksHandlesEmptyInvalidAndSilentInput() {
+        assertEquals(emptyList<Float>(), downsamplePeaks(emptyList(), buckets = 104))
+        assertEquals(emptyList<Float>(), downsamplePeaks(listOf(1f), buckets = 0))
+        assertEquals(listOf(0f, 0f), downsamplePeaks(listOf(0f, 0f), buckets = 2))
+    }
+
+    @Test
+    fun downsamplePeaksFillsShortInputByNearestIndex() {
+        assertEquals(
+            listOf(0.5f, 0.5f, 1f, 1f, 1f),
+            downsamplePeaks(listOf(0.5f, 1f), buckets = 5),
+        )
+    }
+
+    @Test
+    fun downsamplePeaksIsDeterministic() {
+        val samples = listOf(0.4f, 0.1f, 0.8f, 0.2f, 0.6f)
+        assertEquals(
+            downsamplePeaks(samples, buckets = 3),
+            downsamplePeaks(samples, buckets = 3),
+        )
     }
 
     @Test
