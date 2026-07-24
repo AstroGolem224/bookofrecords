@@ -2,7 +2,6 @@ package com.claymachinegames.bookofrecords.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,16 +16,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.clickable
@@ -41,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.claymachinegames.bookofrecords.domain.formatMs
@@ -69,66 +61,20 @@ fun RecordScreen(
         else context.startService(intent)
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(Bor.bg).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        when (val s = state) {
-            is RecState.Idle -> {
-                // Header: Wave-Logo + Titel/Subtitle links, Settings als Glas-Button rechts
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()) {
-                    WaveLogo()
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("BOOK OF RECORDS", color = Bor.textPrimary,
-                            fontSize = 16.sp, letterSpacing = 3.sp)
-                        Text("AUDIO RECORDER", color = Bor.textMuted,
-                            fontSize = 8.sp, letterSpacing = 4.sp,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(top = 2.dp))
-                    }
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.size(44.dp)
-                            .background(Bor.surface.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
-                            .border(1.dp, Bor.border, RoundedCornerShape(14.dp)),
-                    ) { Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.waveCold) }
-                }
-                Spacer(Modifier.height(28.dp))
-                IdleWaveformCard()
-                if (!hasAudioPermission) {
-                    Spacer(Modifier.height(10.dp))
-                    Text("Mikrofon-Berechtigung fehlt", color = Bor.accent, fontSize = 13.sp)
-                }
-                Spacer(Modifier.weight(1f))
-                // Bottombar ohne Rahmen: drei gleiche Spalten → Amber-Button exakt mittig
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        GlassActionButton("BIBLIOTHEK", onClick = onOpenLibrary,
-                            modifier = Modifier.width(118.dp)) { LibraryIcon() }
-                    }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(
-                            onClick = { send(RecorderService.ACTION_START) },
-                            enabled = hasAudioPermission,
-                            modifier = Modifier.size(84.dp)
-                                .border(2.dp, if (hasAudioPermission) Bor.accent else Bor.textMuted,
-                                    CircleShape),
-                        ) {
-                            Box(Modifier.size(56.dp).background(
-                                if (hasAudioPermission) Bor.accent else Bor.textMuted, CircleShape))
-                        }
-                    }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        GlassActionButton("HIDE", onClick = onHide,
-                            modifier = Modifier.width(118.dp)) { HideIcon() }
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-            }
-            is RecState.Recording -> {
+    when (val s = state) {
+        is RecState.Idle -> IdleStartScreen(
+            hasAudioPermission = hasAudioPermission,
+            onOpenSettings = onOpenSettings,
+            onOpenLibrary = onOpenLibrary,
+            onRecord = { send(RecorderService.ACTION_START) },
+            onHide = onHide,
+        )
+        is RecState.Recording -> {
+            // Der Recording-Zweig behält sein bestehendes flexibles Layout unverändert.
+            Column(
+                modifier = Modifier.fillMaxSize().background(Bor.bg).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 var titleText by remember(s.baseName) { mutableStateOf(s.title) }
                 LaunchedEffect(titleText) {
                     if (titleText != s.title) {
@@ -250,4 +196,3 @@ private fun TitleField(text: String, onChange: (String) -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     )
 }
-

@@ -123,3 +123,22 @@ rememberUpdatedState; (2) Waveform-Historie + Collector nach App() gehoben (übe
 Doppel-Sweep als idempotentes Bestandsverhalten akzeptiert; (5) 2 Szenarien ergänzt.
 Loop endet am Cap mit vollständig eingearbeiteten Findings; Findings-Trend 15→11→7→4→5
 (Runde 5 nur Folgefehler der Runde-4-Lösung). Implementierung startet.
+
+---
+
+# Act 3 — Build (Startscreen-Spec aus .docx)
+
+## Round 1 — Codex build
+Codex (gpt-5.6-sol, --yolo) implementierte PLAN.md (Frozen Spec aus
+Book_of_Records_Startscreen_Design_Spec.docx): IdleStartScreen als absolute 412-dp-Komposition
+(BoxWithConstraints + Scale), Ambient-Radials, Glass-Rezept mit Gradient-Rim/Glow/Shadow,
+Brand-Logo-Pfad, 104-Bar-Hero-Waveform mit fixem Array + globalem Gradient, Amber-Playhead,
+Action-Dock (Bibliothek/Record-Layers/Hide) mit Press-Spring-States, Bebas Neue + Barlow.
+Deviation (gemeldet): kein echtes Backdrop-Blur-Sampling ohne neue Dependency — Alpha-Verläufe
++ Rims + Glows stattdessen. Proof laut Codex grün.
+
+### Claude's verdict
+Diff vollständig gelesen (3 Dateien, +548/−156): spec-treu, Recording-Zweig/ausgeschlossene
+Bereiche unangetastet, keine neuen Dependencies, Callbacks erhalten, Tokens nur ergänzt.
+Proof selbst ausgeführt: testDebugUnitTest + assembleDebug BUILD SUCCESSFUL.
+Geräte-Screenshot ausstehend (Handy getrennt). Blur-Deviation akzeptiert.
