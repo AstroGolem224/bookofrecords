@@ -292,7 +292,7 @@ private fun EntryCard(
             Row {
                 Text(
                     listOfNotNull(
-                        time.takeIf { it.isNotEmpty() }?.let { "Uhrzeit $it" },
+                        time.takeIf { it.isNotEmpty() }?.let { "$it h" },
                         "Dauer ${formatMs(e.durationMs)}",
                         "${e.markerCount} ◆",
                     ).joinToString(" · "),
