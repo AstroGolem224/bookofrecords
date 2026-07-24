@@ -98,6 +98,33 @@ class ModelTest {
     }
 
     @Test
+    fun appendLevelAppendsAndTrimsToCap() {
+        assertEquals(listOf(0.1f, 0.2f), appendLevel(listOf(0.1f), 0.2f, cap = 5))
+        assertEquals(listOf(0.2f, 0.3f), appendLevel(listOf(0.1f, 0.2f), 0.3f, cap = 2))
+        assertEquals(listOf(0.9f), appendLevel(listOf(0.1f, 0.2f, 0.3f), 0.9f, cap = 1))
+        assertEquals(emptyList<Float>(), appendLevel(listOf(0.1f), 0.2f, cap = 0))
+    }
+
+    @Test
+    fun dbTickFractionMatchesLevelScale() {
+        assertEquals(1f, dbTickFraction(0), 0.001f)
+        assertEquals(0.0039f, dbTickFraction(-60), 0.001f)
+        // monoton steigend
+        val fracs = listOf(-60, -36, -24, -12, 0).map { dbTickFraction(it) }
+        assertEquals(fracs, fracs.sorted())
+    }
+
+    @Test
+    fun meterZoneBoundaries() {
+        assertEquals(MeterZone.GREEN, meterZone(0.0f))
+        assertEquals(MeterZone.GREEN, meterZone(0.59f))
+        assertEquals(MeterZone.YELLOW, meterZone(0.6f))
+        assertEquals(MeterZone.AMBER, meterZone(0.75f))
+        assertEquals(MeterZone.ORANGE, meterZone(0.85f))
+        assertEquals(MeterZone.ORANGE, meterZone(1.0f))
+    }
+
+    @Test
     fun insertMarkerSortedIntoMiddle() {
         val m1 = Marker(timeMs = 1000)
         val m3 = Marker(timeMs = 3000)

@@ -78,6 +78,26 @@ fun levelFraction(maxAmplitude: Int): Float {
     return log10(1.0 + 9.0 * x).toFloat()
 }
 
+/** Level-Historie fürs Waveform: anhängen, vorn auf [cap] trimmen. */
+fun appendLevel(history: List<Float>, level: Float, cap: Int): List<Float> {
+    if (cap <= 0) return emptyList()
+    return (history + level).takeLast(cap)
+}
+
+/** Position eines dB-Ticks auf der log-Skala von [levelFraction] (Umkehrung: x = 10^(dB/20)). */
+fun dbTickFraction(db: Int): Float =
+    log10(1.0 + 9.0 * Math.pow(10.0, db / 20.0)).toFloat()
+
+enum class MeterZone { GREEN, YELLOW, AMBER, ORANGE }
+
+/** Farbzone eines Meter-Segments an Position [fraction] (0..1). */
+fun meterZone(fraction: Float): MeterZone = when {
+    fraction < 0.6f -> MeterZone.GREEN
+    fraction < 0.75f -> MeterZone.YELLOW
+    fraction < 0.85f -> MeterZone.AMBER
+    else -> MeterZone.ORANGE
+}
+
 /** Insert [marker] keeping the list ascending by timeMs (list display + ticks stay chronological). */
 fun insertMarkerSorted(markers: List<Marker>, marker: Marker): List<Marker> {
     val index = markers.indexOfFirst { it.timeMs > marker.timeMs }

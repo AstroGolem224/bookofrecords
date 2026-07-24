@@ -1,6 +1,7 @@
 package com.claymachinegames.bookofrecords.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,20 +34,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.claymachinegames.bookofrecords.domain.appendLevel
 import com.claymachinegames.bookofrecords.domain.formatMs
 import com.claymachinegames.bookofrecords.record.RecState
 import com.claymachinegames.bookofrecords.record.RecorderService
 import com.claymachinegames.bookofrecords.record.RecorderState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 
 @Composable
 fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit, onOpenSettings: () -> Unit) {
@@ -105,41 +112,65 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit, onOpenS
                 RecHeader(paused = s.paused)
                 Spacer(Modifier.height(14.dp))
                 TitleField(text = titleText, onChange = { titleText = it })
-                Text(formatMs(s.elapsedMs), color = Bor.textPrimary,
-                    fontFamily = FontFamily.Monospace, fontSize = 36.sp,
-                    modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
-                LevelMeter(level = s.level)
-                Spacer(Modifier.height(16.dp))
-                Button(
-                    onClick = { send(RecorderService.ACTION_MARKER) },
-                    enabled = !s.paused,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Bor.accent, contentColor = Bor.onAccent,
-                        disabledContainerColor = Bor.surface, disabledContentColor = Bor.textMuted),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().height(96.dp),
-                ) { Text("Marker", fontSize = 20.sp) }
+                Spacer(Modifier.height(12.dp))
+
+                // Waveform: Historie überlebt Recompositions, Reset je Aufnahme; Rotation-Reset akzeptiert
+                val density = LocalDensity.current
+                var waveHistory by remember(s.baseName) { mutableStateOf(listOf<Float>()) }
+                val waveCap = remember { mutableIntStateOf(0) }
+                LaunchedEffect(s.baseName) {
+                    // direkt am StateFlow (snapshotFlow trackt StateFlow.value nicht)
+                    RecorderState.state
+                        .map { it as? RecState.Recording }
+                        .filterNotNull()
+                        .distinctUntilChangedBy { it.elapsedMs }
+                        .collect { rec ->
+                            // vor erstem onSizeChanged (width=0) unbegrenzt sammeln statt auf 1 trimmen
+                            val cap = if (waveCap.intValue == 0) Int.MAX_VALUE
+                                      else (waveCap.intValue / with(density) { 3.dp.toPx() }.toInt())
+                                          .coerceAtLeast(1)
+                            waveHistory = appendLevel(waveHistory, rec.level, cap)
+                        }
+                }
+                LiveWaveform(levels = waveHistory, onWidthPx = { waveCap.intValue = it })
+
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 14.dp, bottom = 10.dp)) {
+                    PulsingRecDot(paused = s.paused)
+                    Spacer(Modifier.width(10.dp))
+                    Text(formatMs(s.elapsedMs), color = Bor.accent,
+                        fontFamily = FontFamily.Monospace, fontSize = 48.sp)
+                }
+
+                DbMeter(level = s.level)
+                Spacer(Modifier.height(2.dp))
+                DbScale()
                 Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
+
+                Text("M4A · 96 kbps · mono", color = Bor.textSecondary,
+                    fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                    modifier = Modifier
+                        .border(1.dp, Bor.border, RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 5.dp))
+                Spacer(Modifier.height(14.dp))
+
+                RecordButtonRow(
+                    paused = s.paused,
+                    onStop = {
+                        // Titel mitschicken: schlägt 400ms-Debounce bei schnellem Stop
+                        context.startService(
+                            RecorderService.intent(context, RecorderService.ACTION_STOP)
+                                .putExtra(RecorderService.EXTRA_TITLE, titleText))
+                    },
+                    onPauseResume = {
                         send(if (s.paused) RecorderService.ACTION_RESUME
                              else RecorderService.ACTION_PAUSE)
-                    }, shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f)) {
-                        Text(if (s.paused) "Weiter" else "Pause", color = Bor.textSecondary)
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            // Titel mitschicken: schlägt 400ms-Debounce bei schnellem Stop
-                            context.startService(
-                                RecorderService.intent(context, RecorderService.ACTION_STOP)
-                                    .putExtra(RecorderService.EXTRA_TITLE, titleText))
-                        },
-                        shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f),
-                    ) { Text("Stop", color = Bor.textSecondary) }
-                }
+                    },
+                    onMarker = { send(RecorderService.ACTION_MARKER) },
+                )
                 Spacer(Modifier.height(14.dp))
                 HorizontalDivider(color = Bor.borderSubtle)
-                LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp)) {
                     items(s.markers.asReversed()) { m ->
                         Row(Modifier.padding(vertical = 4.dp)) {
                             Text(formatMs(m.timeMs), color = Bor.accent,
@@ -164,9 +195,6 @@ private fun RecHeader(paused: Boolean) {
         Text(if (paused) "PAUSE" else "REC",
             color = if (paused) Bor.textMuted else Bor.accent,
             fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-        Spacer(Modifier.weight(1f))
-        Text("96k · mono", color = Bor.textMuted,
-            fontFamily = FontFamily.Monospace, fontSize = 12.sp)
     }
 }
 
@@ -188,21 +216,3 @@ private fun TitleField(text: String, onChange: (String) -> Unit) {
     )
 }
 
-@Composable
-private fun LevelMeter(level: Float) {
-    val bars = 14
-    val active = (level * bars).toInt()
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.Bottom, modifier = Modifier.height(24.dp)) {
-        repeat(bars) { i ->
-            val frac = (i + 1f) / bars
-            val color = when {
-                i >= active -> Bor.borderSubtle
-                frac > 0.7f -> Bor.levelAmber
-                else -> Bor.levelGreen
-            }
-            Box(Modifier.width(5.dp).height((6 + 18 * frac).dp)
-                .background(color, RoundedCornerShape(1.dp)))
-        }
-    }
-}
