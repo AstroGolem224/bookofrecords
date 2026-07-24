@@ -20,9 +20,10 @@ object Bor {
     val levelAmber = Color(0xFFE0A030)
     val levelYellow = Color(0xFFC9C930)
     val levelOrange = Color(0xFFE07030)
-    val waveCold = Color(0xFF4FC3F7)
+    val waveCold = Color(0xFF35D6E8)
     val amber = Color(0xFFF5A623)     // = accent (Alias für bestehende Aufrufer)
     val teal = Color(0xFF3EC8CE)
+    val violet = Color(0xFF8B5CF6)    // Mockup: Waveform-Verlauf, Glow-Border
     val textPrimary = Color(0xFFF2F4F5)
     val textSecondary = Color(0xFF93A2AA)
     val textMuted = Color(0xFF56656D)

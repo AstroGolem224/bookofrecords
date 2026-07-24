@@ -42,7 +42,13 @@ fun HideScreen(onExit: () -> Unit) {
     val state by RecorderState.state.collectAsState()
     val recording = state as? RecState.Recording
 
-    LaunchedEffect(recording == null) { if (recording == null) onExit() }
+    // Auto-Exit nur beim Übergang Recording → Idle; vom Idle-Screen aus versteckt
+    // (kein recording gesehen) bleibt der Screen bis Doppeltipp/Back stehen
+    var sawRecording by remember { mutableStateOf(false) }
+    LaunchedEffect(recording == null) {
+        if (recording != null) sawRecording = true
+        else if (sawRecording) onExit()
+    }
     BackHandler { onExit() }
 
     val clockFormat = remember { DateTimeFormatter.ofPattern("HH:mm") }

@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +53,7 @@ fun LiveWaveform(levels: List<Float>, modifier: Modifier = Modifier, onWidthPx: 
         val barW = 2.dp.toPx()
         val step = barW + 1.dp.toPx()
         val midY = size.height / 2f
-        val brush = Brush.horizontalGradient(0f to Bor.waveCold, 1f to Bor.accent)
+        val brush = Brush.horizontalGradient(0f to Bor.waveCold, 1f to Bor.violet)
         val playheadX = size.width - 2.dp.toPx()
         if (levels.isEmpty()) {
             // Idle: ruhende Grundlinie statt Playhead
@@ -200,4 +201,123 @@ private fun DbMeterPreview() {
 @Composable
 private fun ButtonRowPreview() {
     RecordButtonRow(paused = false, onStop = {}, onPauseResume = {}, onMarker = {})
+}
+
+// ---------- Idle-Screen (Cyberpunk-Glassmorphism nach Mockup) ----------
+
+/** Kleines Waveform-Logo, Cyan→Violett-Verlauf. */
+@Composable
+fun WaveLogo(modifier: Modifier = Modifier) {
+    Canvas(modifier.size(width = 34.dp, height = 26.dp)) {
+        val heights = listOf(0.35f, 0.7f, 1f, 0.55f, 0.8f, 0.4f)
+        val brush = Brush.horizontalGradient(0f to Bor.waveCold, 1f to Bor.violet)
+        val step = size.width / heights.size
+        val midY = size.height / 2f
+        heights.forEachIndexed { i, f ->
+            val x = step * i + step / 2f
+            val h = f * size.height / 2f
+            drawLine(brush, Offset(x, midY - h), Offset(x, midY + h),
+                strokeWidth = 2.5f.dp.toPx(), cap = StrokeCap.Round)
+        }
+    }
+}
+
+/** Glaskarte mit statischer Deko-Waveform, Amber-Playhead mittig und Status-Label. */
+@Composable
+fun IdleWaveformCard(label: String, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(24.dp)
+    Box(
+        modifier.fillMaxWidth().height(180.dp)
+            .background(Bor.surface.copy(alpha = 0.55f), shape)
+            .border(1.dp, Brush.linearGradient(listOf(
+                Bor.waveCold.copy(alpha = 0.7f), Bor.violet.copy(alpha = 0.7f))), shape),
+    ) {
+        Canvas(Modifier.fillMaxWidth().height(110.dp).align(Alignment.TopCenter)
+            .padding(top = 18.dp).padding(horizontal = 18.dp)) {
+            val bars = 64
+            val step = size.width / bars
+            val midY = size.height / 2f
+            val brush = Brush.horizontalGradient(
+                0f to Bor.waveCold, 0.5f to Color(0xFFB8E4F5), 1f to Bor.violet)
+            repeat(bars) { i ->
+                // deterministische Pseudo-Waveform (kein Random: reproduzierbar, preview-stabil)
+                val t = i.toFloat()
+                val f = (0.25f + 0.75f *
+                    kotlin.math.abs(kotlin.math.sin(t * 0.55f)) *
+                    (0.4f + 0.6f * kotlin.math.abs(kotlin.math.sin(t * 0.13f + 1.7f))))
+                val x = step * i + step / 2f
+                val h = f * midY * 0.9f
+                drawLine(brush, Offset(x, midY - h), Offset(x, midY + h),
+                    strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+            }
+            // Amber-Playhead mit Endpunkten, mittig
+            val cx = size.width / 2f
+            drawLine(Bor.accent, Offset(cx, -8.dp.toPx()), Offset(cx, size.height + 8.dp.toPx()),
+                strokeWidth = 2.dp.toPx())
+            drawCircle(Bor.accent, 3.5f.dp.toPx(), Offset(cx, -8.dp.toPx()))
+            drawCircle(Bor.accent, 3.5f.dp.toPx(), Offset(cx, size.height + 8.dp.toPx()))
+        }
+        Text(label, color = Bor.textSecondary, fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace, letterSpacing = 4.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
+    }
+}
+
+/** Eckiger Glas-Button mit Canvas-Icon und Mini-Label (Bottombar links/rechts). */
+@Composable
+fun GlassActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .background(Bor.surface.copy(alpha = 0.7f), shape)
+            .border(1.dp, Bor.border, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        icon()
+        Text(label, color = Bor.textSecondary, fontSize = 8.sp,
+            fontFamily = FontFamily.Monospace, letterSpacing = 2.sp,
+            modifier = Modifier.padding(top = 5.dp))
+    }
+}
+
+/** Bibliotheks-Icon: Buchrücken. */
+@Composable
+fun LibraryIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier.size(20.dp)) {
+        val w = 4.5f.dp.toPx()
+        val gap = 2.5f.dp.toPx()
+        val r = 1.5f.dp.toPx()
+        var x = (size.width - 3 * w - 2 * gap) / 2f
+        repeat(3) { i ->
+            val inset = if (i == 2) 3.dp.toPx() else 0f
+            drawRoundRect(Bor.textPrimary, topLeft = Offset(x, inset),
+                size = androidx.compose.ui.geometry.Size(w, size.height - inset),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f.dp.toPx()))
+            x += w + gap
+        }
+    }
+}
+
+/** Durchgestrichenes Auge (verstecken). */
+@Composable
+fun HideIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier.size(20.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(1.5f.dp.toPx())
+        drawOval(Bor.textPrimary,
+            topLeft = Offset(1.dp.toPx(), size.height * 0.28f),
+            size = androidx.compose.ui.geometry.Size(size.width - 2.dp.toPx(), size.height * 0.44f),
+            style = stroke)
+        drawCircle(Bor.textPrimary, 2.dp.toPx(), center)
+        drawLine(Bor.textPrimary, Offset(size.width * 0.15f, size.height * 0.9f),
+            Offset(size.width * 0.85f, size.height * 0.1f), strokeWidth = 1.5f.dp.toPx(),
+            cap = StrokeCap.Round)
+    }
 }

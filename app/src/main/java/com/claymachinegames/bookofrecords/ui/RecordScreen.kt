@@ -75,46 +75,60 @@ fun RecordScreen(
     ) {
         when (val s = state) {
             is RecState.Idle -> {
+                // Header: Wave-Logo + Titel/Subtitle links, Settings als Glas-Button rechts
                 Row(verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()) {
-                    Spacer(Modifier.size(48.dp))   // Balance zum Settings-Icon rechts
-                    Text("BOOK OF RECORDS", color = Bor.teal,
-                        style = MaterialTheme.typography.titleMedium,
-                        letterSpacing = 4.sp,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center)
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.textMuted)
+                    WaveLogo()
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("BOOK OF RECORDS", color = Bor.textPrimary,
+                            fontSize = 16.sp, letterSpacing = 3.sp)
+                        Text("AUDIO RECORDER", color = Bor.textMuted,
+                            fontSize = 8.sp, letterSpacing = 4.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 2.dp))
                     }
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.size(44.dp)
+                            .background(Bor.surface.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
+                            .border(1.dp, Bor.border, RoundedCornerShape(14.dp)),
+                    ) { Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.waveCold) }
                 }
-                Spacer(Modifier.weight(0.6f))
-                // ruhende Waveform-Grundlinie als Platzhalter
-                LiveWaveform(levels = emptyList())
                 Spacer(Modifier.height(28.dp))
-                Text("00:00:00", color = Bor.textMuted,
-                    fontFamily = FontFamily.Monospace, fontSize = 48.sp)
-                Spacer(Modifier.height(36.dp))
-                // großer runder Record-Button im Stil der Recording-Button-Zeile
-                IconButton(
-                    onClick = { send(RecorderService.ACTION_START) },
-                    enabled = hasAudioPermission,
-                    modifier = Modifier.size(96.dp)
-                        .background(Bor.surface, CircleShape)
-                        .border(3.dp, if (hasAudioPermission) Bor.accent else Bor.textMuted,
-                            CircleShape),
-                ) {
-                    Box(Modifier.size(32.dp).background(
-                        if (hasAudioPermission) Bor.accent else Bor.textMuted, CircleShape))
-                }
+                IdleWaveformCard(label = "BEREIT")
+                Spacer(Modifier.weight(0.5f))
+                Text("00:00:00", color = Bor.textPrimary.copy(alpha = 0.85f),
+                    fontFamily = FontFamily.Monospace, fontSize = 52.sp,
+                    letterSpacing = 2.sp)
                 if (!hasAudioPermission) {
                     Spacer(Modifier.height(10.dp))
                     Text("Mikrofon-Berechtigung fehlt", color = Bor.accent, fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(20.dp))
-                TextButton(onClick = onOpenLibrary) {
-                    Text("Bibliothek ›", color = Bor.textSecondary)
-                }
                 Spacer(Modifier.weight(1f))
+                // Glas-Bottombar: Bibliothek · Record · Hide
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth()
+                        .background(Bor.surface.copy(alpha = 0.55f), RoundedCornerShape(28.dp))
+                        .border(1.dp, Bor.borderSubtle, RoundedCornerShape(28.dp))
+                        .padding(vertical = 14.dp),
+                ) {
+                    GlassActionButton("BIBLIOTHEK", onClick = onOpenLibrary) { LibraryIcon() }
+                    IconButton(
+                        onClick = { send(RecorderService.ACTION_START) },
+                        enabled = hasAudioPermission,
+                        modifier = Modifier.size(84.dp)
+                            .border(2.dp, if (hasAudioPermission) Bor.accent else Bor.textMuted,
+                                CircleShape),
+                    ) {
+                        Box(Modifier.size(56.dp).background(
+                            if (hasAudioPermission) Bor.accent else Bor.textMuted, CircleShape))
+                    }
+                    GlassActionButton("HIDE", onClick = onHide) { HideIcon() }
+                }
+                Spacer(Modifier.height(6.dp))
             }
             is RecState.Recording -> {
                 var titleText by remember(s.baseName) { mutableStateOf(s.title) }
