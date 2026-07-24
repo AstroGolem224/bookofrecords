@@ -1,127 +1,181 @@
-# Plan: Recorder-Screen-Redesign (Stil-Adaption des Referenz-Screenshots)
+# Plan: Swipe-Navigation, Hide-Screen, Library-Filter+Suche
 
-_Round 2 — revised nach Kimi-Review_
+_Round 5 (final) — revised nach Codex-Review; Loop am MAX_ROUNDS-Cap geschlossen, alle Findings übernommen_
 
-## Ziel
+## Goal
 
-Den `RecState.Recording`-Zweig von `RecordScreen.kt` optisch an das Referenz-Design anlehnen
-(dunkles Theme, Live-Waveform, große Akzent-Zeit, segmentiertes Pegel-Meter, runde Button-Zeile),
-ohne neue Datenquellen im Service zu erfinden. Idle-Zweig, Library, Detail, Settings bleiben unverändert.
+Drei UX-Features: (1) horizontales Swipen zwischen Aufnahme-Screen und Bibliothek,
+(2) "HIDE"-Button während Aufnahme → schwarzer Tarn-Screen mit Uhrzeit + dezentem roten Punkt,
+(3) Bibliothek bekommt Filter-Bar (Alle/Heute/Gestern) und Suchfeld über Dateinamen.
 
-## Rahmenbedingungen (aus Bestandsaufnahme)
+## Bestandsaufnahme
 
-- Verfügbare Live-Daten: `RecState.Recording(baseName, title, elapsedMs, paused, level: Float 0..1 log, markers)`.
-  Level-Poll im Service ~alle 250ms; bei `paused` setzt der Service `level = 0f` und `elapsedMs` friert ein.
-- Aufnahme ist **mono** (M4A/AAC 96 kbps). Kein Stereo, keine PCM-Daten.
-- Theme existiert (`Bor`-Objekt, dunkel, Akzent `#FF453A`). Wird beibehalten, nur ergänzt.
-- Titel-Feld und Marker-Liste sind BoR-Kernfeatures und bleiben auf dem Screen.
+- `MainActivity.kt`: `setContent { BorTheme { Surface { Box(safeDrawing-padding) { App() } } } }`;
+  `App()` hält `var screen by remember { mutableStateOf<Screen>(Screen.Record) }`, `when`-Dispatch,
+  `BackHandler` pro Screen, kein Backstack. `screen` ist NICHT saveable (Bestand).
+- `LibraryScreen(store, onOpen, onNewRecording, onOpenSettings, onSweep)`: `entries` privat,
+  Ladeeffekt `LaunchedEffect(store)`; Multi-Select `selected: Set<Uri>`; Zip-Export nutzt `selected`.
+- `RecordingEntry`: `baseName`, `dateGroup: String` ("yyyy-MM-dd"), `audioUri`, …
+- `RecordScreen` Recording-Zweig: Titel-Debounce 400ms in `LaunchedEffect(titleText)`.
+- `HorizontalPager` in Compose-Foundation (BOM 2024.12.01), kein neues Dependency.
+- `borFieldColors()` ist aktuell `private` in `DetailScreen.kt`.
 
-## Nicht-Ziele (bewusst weggelassen / deklarierte Einschränkungen)
+## Approach
 
-- Kein Stereo-Meter (App ist mono) → ein Meter, volle Breite, mit dB-Skala.
-- Kein "HIDE"-Button (kein Äquivalent-Feature).
-- Kein echtes Sample-Waveform → Balken-Waveform aus Level-Historie.
-- Keine Änderung an RecorderService/RecState — reines UI-Paket.
-- Format-Chip zeigt reale Werte: **"M4A · 96 kbps · mono"** (einheitlich, auch in Schritt 3.6).
-- **Rotation setzt die Waveform-Historie zurück** (remember-basiert) — akzeptiert für v1;
-  Upgrade-Pfad: Historie neben `RecorderState` prozessweit halten.
-- Layout ist portrait-orientiert; Landscape wird nicht gesondert gestaltet, darf aber nichts crashen
-  (obere Sektion kompakt, Marker-Liste bekommt `weight(1f)` und damit den Rest).
+### 0. Struktur: Hide als Root-Overlay (nicht als Screen-State)
 
-## Änderungen
+- `var hidden by rememberSaveable { mutableStateOf(false) }` lebt in `MainActivity.setContent`
+  (außerhalb der safeDrawing-Box) — überlebt Recreation; nach Prozess-Tod ist der Recorder Idle
+  und der Auto-Exit (siehe 2.) beendet Hide sofort. Rendering:
+  ```
+  Box(fillMaxSize, background = Bor.bg) {
+      Box(Modifier.windowInsetsPadding(safeDrawing)) { App(onHide = { hidden = true }) }
+      if (hidden) HideScreen(onExit = { hidden = false })   // ungepolstert, echtes Vollbild
+  }
+  ```
+  Wirkung: HideScreen malt **hinter Status-/Nav-Bar** (edge-to-edge, echtes Schwarz) UND
+  `App()` bleibt komponiert → Titel-Debounce/Pager/Listen-State überleben das Verstecken.
+- Edge-to-Edge gilt erzwungen erst ab Android 15: in `onCreate` zusätzlich
+  `enableEdgeToEdge(SystemBarStyle.dark(TRANSPARENT), SystemBarStyle.dark(TRANSPARENT))` —
+  explizit dunkle Bar-Styles (helle Icons), damit API < 35 weder opake Bars noch dunkle Icons
+  über dem schwarzen Hide-Screen zeigt.
 
-### 1. `BorTheme.kt` — Farbergänzungen
-Neue Werte im `Bor`-Objekt (keine bestehenden ändern):
-- `waveCold = Color(0xFF4FC3F7)` (kaltes Blau, Waveform-Anfang)
-- `waveWarm = accent` (Wiederverwendung)
-- `levelOrange = Color(0xFFE07030)` (Meter-Zone ≥ 0.85)
+### 1. Swipe Record⇄Library (Pager, Buttons bleiben)
 
-### 2. Neue reine Logik in `domain/Model.kt` (testbar)
+- `Screen`: `Record` + `Library` verschmelzen zu `Screen.Main`; `Settings`, `Detail` bleiben.
+- **`beyondViewportPageCount = 1`**: beide Seiten bleiben dauerhaft komponiert. Damit überleben
+  Titel-Debounce (400ms-`LaunchedEffect`) und Waveform-Historie das Wegswipen — kein
+  Flush-on-Dispose-Mechanismus für den Pager nötig. Kosten: RecordScreen recomposed offscreen mit
+  ~4 Hz (Level-Ticks) während man in der Bibliothek ist — ein kleiner Canvas, akzeptiert;
+  LibraryScreen lädt offscreen NICHT (Load ist `isActive`-gegatet, s.u.).
+- **Route-Wechsel (Detail/Settings) zerstört den Pager trotzdem** — zwei Absicherungen:
+  a) Titel: `DisposableEffect` im Recording-Zweig flusht beim Dispose den letzten Titel
+     (`rememberUpdatedState(titleText)` → `ACTION_SET_TITLE`) — kein Verlust im Debounce-Fenster,
+     egal ob Pager- oder Routen-Dispose.
+  b) Waveform: Historie (+ Breiten-Cap) wird nach `App()` gehoben (dort läuft auch der
+     Level-Collector, gekeyt/resettet über `baseName`); `RecordScreen` bekommt
+     `waveHistory: List<Float>` + `onWaveWidthPx` gereicht. `App` bleibt bei Detail/Settings
+     komponiert → Historie überlebt jede Navigation während der Aufnahme.
+- Seiten-Index überlebt Detail/Settings-Ausflüge und Activity-Recreation:
+  `var mainPage by rememberSaveable { mutableIntStateOf(0) }` in `App()`;
+  in `Screen.Main`: `rememberPagerState(initialPage = mainPage, pageCount = { 2 })`,
+  Rückschreiben via `snapshotFlow { pagerState.settledPage }.collect { mainPage = it }`.
+  → Rückkehr aus Detail landet wieder auf der Bibliothek (Seite 1).
+- Buttons bleiben: `onOpenLibrary` → `animateScrollToPage(1)`; Library-`onNewRecording` → Seite 0.
+- BackHandler-Priorität (zentralisiert dokumentiert): LibraryScreens Selection-BackHandler ist
+  im Page-Content komponiert → registriert NACH dem Pager-BackHandler → gewinnt solange
+  Selection aktiv (enabled-Flag). Pager-BackHandler: `enabled = settledPage == 1` → Seite 0.
+  Auf Seite 0: Activity-Default. Reihenfolge: Selection schließen → Seite 0 → App verlassen.
+- Library-Refresh — **eine** Revisionsquelle `var libraryRevision by remember { mutableIntStateOf(0) }`
+  in `App`. LibraryScreens Ladeeffekt wird `LaunchedEffect(store, refreshToken, isActive) {
+  if (isActive) load() }` — geladen wird NUR wenn die Seite gesettelt aktiv ist:
+  a) Seiten-Eintritt lädt über den `isActive`-Flip (false→true rekeyt den Effect) —
+     **kein** separates Revision-Inkrement beim Eintritt → kein Doppel-Load beim lazy
+     Vorkomponieren oder bei Rückkehr mit initialPage 1;
+  b) Aufnahme-Ende: Revision-Inkrement im bestehenden `Recording → Idle`-Collector NACH
+     `sweepNow()` — deckt Stop über die Notification ab, während die Bibliothek sichtbar ist.
+- **Sweep: Bestand beibehalten** (Revision der Runde-4-Zentralisierung): LibraryScreens Ladeeffekt
+  behält sein serialisiertes `onSweep() → store.list()` — das ist das existierende
+  Retry-Verhalten bei temporär nicht erreichbarem Ziel (Sweep schluckt Fehler; erneuter
+  Library-Eintritt versucht es wieder). Der `Recording → Idle`-Collector sweept weiterhin
+  (Bestand) und inkrementiert danach die Revision. Seltener Doppel-Sweep (Stop während Library
+  sichtbar) ist idempotent und existiert heute schon — akzeptiert statt neuer Suppress-Mechanik.
+  `onSweep` bleibt damit genutzt, kein toter Parameter.
+- Aktivitäts-Flag: `LibraryScreen` bekommt `isActive: Boolean` (= `settledPage == 1`):
+  - Selection-BackHandler `enabled = selecting && isActive` — ein offscreen komponierter
+    Page-Rest kann Back nicht mehr stehlen;
+  - `LaunchedEffect(isActive) { if (!isActive) selection leeren }` — definiert: Selection
+    überlebt das Verlassen der Seite NICHT (weder Swipe noch "Neue Aufnahme").
+- Query/Filter in Library als `rememberSaveable` (überlebt zusätzlich Recreation).
+  Selection bleibt `remember` (Set<Uri> nicht trivial saveable) und wird beim Verlassen geleert.
 
-- `fun appendLevel(history: List<Float>, level: Float, cap: Int): List<Float>` —
-  hängt an, trimmt vorn auf `cap` (cap ≤ 0 → leere Liste). Unit-getestet.
-- `fun dbTickFraction(db: Int): Float = log10(1.0 + 9.0 * 10.0.pow(db / 20.0)).toFloat()` —
-  inverse Abbildung der log-Skala von `levelFraction`; positioniert die dB-Labels **korrekt**
-  (nicht linear). Unit-getestet gegen bekannte Werte (0 dB → 1.0, −60 dB ≈ 0.004…).
-- `fun meterSegmentColor(fraction: Float)`-Zuordnung als testbare `when`-Logik
-  (Rückgabe als Enum/Zone `MeterZone { GREEN, YELLOW, AMBER, ORANGE }`, UI mappt Zone→Color;
-  so bleibt der Test Compose-frei).
+### 2. Hide-Screen (`ui/HideScreen.kt`)
 
-### 3. Neue Datei `ui/RecordComponents.kt` — Composables
+- Voll schwarz (`Color.Black`), ungepolstert (siehe 0).
+- Mitte: Uhrzeit `HH:mm`, Monospace, `Bor.textMuted`, ~40sp. Update-Loop:
+  `LaunchedEffect(Unit) { while(true) { now = "HH:mm"-String von LocalTime.now(); delay(1000) } }`
+  — Sekunden-Ticker, aber `now` ist der formatierte String → Recomposition nur beim Minutenwechsel.
+  Selbstkorrigierend nach Doze/Resume/Zeitzonen-Wechsel binnen 1s, kein Lifecycle-Observer nötig.
+- Unten mittig (safeDrawing-Bottom-Inset beachtet, damit nicht unter der Nav-Bar):
+  6dp-Punkt, statisch (kein Pulsieren — Tarnung): Recording aktiv → `Bor.accent` alpha 0.35;
+  paused → `Bor.textMuted` alpha 0.35; Idle → Auto-Exit.
+- Exit: Doppeltipp (`detectTapGestures(onDoubleTap)`), einfacher Tipp tut nichts;
+  `BackHandler { onExit() }` als Fluchtweg; `LaunchedEffect`: wenn `RecorderState.state` Idle wird → `onExit()`.
+- TalkBack: `Modifier.semantics { onClick("Aufnahme anzeigen") { onExit(); true } }` auf dem
+  Root-Box — semantische Exit-Aktion für Screenreader, physischer Doppeltipp bleibt unverändert.
+- Kein zusätzlicher Screen-Wake-Lock (`keepScreenOn`): Display darf ausgehen; der bestehende
+  PARTIAL_WAKE_LOCK des RecorderService hält die CPU für den Foreground-Service verfügbar
+  (Prozess-Tod bleibt die dokumentierte Grenze, siehe Out of scope).
+- Einstieg: "HIDE"-Pill **im `RecHeader` rechts** (der Slot ist seit Entfernung des Format-Texts
+  frei) — dezent (Outline, `textMuted`), nur im Recording-Zustand. Bewusst NICHT unter der
+  Button-Zeile wie im Referenz-Design: vermeidet Überlauf bei kleiner Höhe/offener IME
+  (Screen hat bereits viele fixe Höhen über der gewichteten Marker-Liste).
+  Neuer Callback `onHide: () -> Unit` an `RecordScreen`.
 
-**a) `LiveWaveform(levels: List<Float>, modifier)`**
-- Canvas: vertikal gespiegelte Balken (2dp breit, 1dp Lücke), neueste rechts.
-- Horizontaler Farbverlauf `waveCold`→`waveWarm` (`Brush.horizontalGradient`).
-- Rechts Playhead: dünne vertikale Linie + Punkt oben in `accent`.
-- Höhe 80dp. Kapazität liefert der Aufrufer (siehe 4.3).
+### 3. Library: Filter-Bar + Suche
 
-**b) `DbMeter(level: Float, modifier)`**
-- ~32 Segmente, Zone je Segment-Position via `meterSegmentColor` (grün <0.6, gelb <0.75,
-  amber <0.85, orange ≥0.85).
-- Darunter Labels `-36 -24 -12 0 dB` (Monospace, `textMuted`, 10sp), horizontal positioniert
-  bei `dbTickFraction(db) * meterBreite` — log-korrekt. **Kein −60-Label**: es läge bei ~0.4%
-  der Breite und würde mit −36 (~6%) kollidieren; −36 wird linksbündig geclampt.
+- Pure Logik in `domain/Model.kt`:
+  ```kotlin
+  enum class DateFilter { ALL, TODAY, YESTERDAY }
+  fun matchesLibraryFilter(baseName: String, dateGroup: String, query: String,
+                           filter: DateFilter, today: String, yesterday: String): Boolean
+  ```
+  Query case-insensitiv als Substring auf `baseName`; Filter via `dateGroup`-Vergleich;
+  Query UND Filter kombiniert; leerer Query matcht alles. Uhr-frei → unit-testbar.
+- `today` als State mit 60s-Ticker solange Library komponiert ist
+  (`LaunchedEffect(Unit) { while(true) { todayState = LocalDate.now(); delay(60_000) } }`) —
+  Mitternacht/Zeitzonen-Wechsel korrigiert sich binnen einer Minute auch ohne Interaktion;
+  `yesterday = todayState.minusDays(1)`. Recomposition nur bei Datumswechsel (String-State).
+- UI in `LibraryScreen`:
+  - Suchfeld (`OutlinedTextField`, Platzhalter "Suchen…", ×-Clear bei Text), `rememberSaveable`.
+  - Chips-Reihe "Alle/Heute/Gestern" im bestehenden Pill-Stil (aktiv: `accent`-Border+`textPrimary`;
+    inaktiv: `border`+`textSecondary`), `rememberSaveable` (Enum-Ordinal).
+  - Anwendung vor Gruppierung: `entries.filter { matchesLibraryFilter(...) }` → `groupBy` wie gehabt.
+  - Empty-State-Präzedenz (exklusiv, in dieser Reihenfolge): Ziel nicht erreichbar → lädt →
+    `entries` leer → "Noch keine Aufnahmen" (Bestand) → gefilterte Liste leer → "Keine Treffer"
+    → gruppierte Ergebnisse. Nie zwei Meldungen gleichzeitig.
+  - **Selection×Filter**: bei jeder Änderung von Query/Filter/entries wird
+    `selected = selected intersect sichtbareUris` — Export kann keine unsichtbaren Dateien erfassen.
+  - `borFieldColors()` von `DetailScreen.kt` nach `BorTheme.kt` als `internal` verschieben,
+    beide Screens nutzen es.
 
-**c) `PulsingRecDot(paused: Boolean)`**
-- 12dp-Punkt in `accent`; `rememberInfiniteTransition` (alpha 0.4..1) lebt **nur in diesem
-  Composable**, damit die 60fps-Animation nicht den Zeit-Text mit-recomposed. Bei `paused`:
-  statisch, alpha 1, Farbe `textMuted`.
+## Key decisions & tradeoffs
 
-**d) `RecordButtonRow(paused, onStop, onPauseResume, onMarker, markerEnabled)`**
-- Links: Stop — runder 64dp-Button, `surface`-Hintergrund, `Icons.Filled.Stop`.
-- Mitte: Pause/Resume — 96dp-Kreis, `accent`-Ring (3dp Border), Icon Pause bzw. Record-Punkt.
-- Rechts: Marker — runder 64dp-Button, Bookmark-Icon + "MARK" (10sp), disabled bei `paused`.
+- **Hide als Root-Overlay** statt Screen-State: echtes Vollbild hinter Systembars, kein State-Verlust
+  im Recorder (Debounce läuft weiter), triviale Rückkehr.
+- **Pager + Screen-State koexistieren**: kein Navigation-Compose-Dependency. Akzeptiert: zwei Mechanismen.
+- **Swipe über Textfeldern kann von der Textfeld-Geste konsumiert werden** (einzeiliges TextField
+  scrollt horizontal): akzeptiert — Buttons bleiben als verlässlicher Navigationsweg erhalten;
+  kein Fokus-abhängiges Pager-Disabling (Komplexität ohne echten Nutzen).
+- **Selection nicht saveable**: kurzlebiger Arbeitszustand, Verlust bei Disposal/Recreation akzeptiert.
+- **Filterlogik pure** → Unit-Test; UI dünn.
 
-### 4. `RecordScreen.kt` — Recording-Zweig umbauen
+## Out of scope (explizit)
 
-Neue Reihenfolge (Column):
-1. `RecHeader` **geändert**: REC/PAUSE-Punkt + Label links bleiben; der rechte Format-Text
-   `96k · mono` **entfällt** (der Format-Chip in Punkt 6 übernimmt diese Info).
-2. `TitleField` bleibt (inkl. bestehendem 400ms-Debounce).
-3. `LiveWaveform` — Historie: `remember(s.baseName) { mutableStateOf(listOf<Float>()) }`.
-   Kapazität: `Modifier.onSizeChanged` auf der Waveform → `capState: MutableState<Int>`
-   (`cap = widthPx / (3dp in px)`).
-   Sammeln — **direkt am StateFlow, nicht snapshotFlow** (snapshotFlow trackt `.value`-Reads
-   eines kotlinx-StateFlow nicht und würde nie re-emittieren):
-   `LaunchedEffect(s.baseName) { RecorderState.state
-   .map { it as? RecState.Recording }.filterNotNull()
-   .distinctUntilChangedBy { it.elapsedMs }
-   .collect { rec -> history = appendLevel(history, rec.level, capState.value.coerceAtLeast(1)) } }`
-   — `capState.value` wird **im collect-Lambda** gelesen (nie stale); vor erstem `onSizeChanged`
-   greift `coerceAtLeast(1)` bis die echte Breite da ist (danach trimmt appendLevel auf echten cap).
-   Bei `paused` friert `elapsedMs` ein → keine neuen Samples.
-4. Zeit-Zeile: `PulsingRecDot(paused)` + `formatMs(elapsedMs)` Monospace **48sp** in `accent`.
-   `formatMs` selbst bleibt unverändert (wird von Library/Detail mitgenutzt).
-5. `DbMeter`.
-6. Format-Chip: "M4A · 96 kbps · mono", Rounded-Border-Pill (`border`, `textSecondary`, Monospace 12sp).
-7. `RecordButtonRow`. **`onStop` sendet `ACTION_STOP` MIT `EXTRA_TITLE = titleText`** —
-   exakt wie heute (schlägt den 400ms-Debounce; keine Regression). `onMarker` → `ACTION_MARKER`,
-   `onPauseResume` → `ACTION_PAUSE`/`ACTION_RESUME`.
-8. Divider + Marker-Liste: LazyColumn mit `Modifier.weight(1f)` — bekommt allen Restplatz,
-   wird auf kleinen Screens/Landscape nicht von fixen Höhen erdrückt (obere Sektion ist kompakt:
-   80dp Waveform + 48sp Zeit + ~32dp Meter + Chip + 96dp Buttons).
+- Prozess-Tod während Aufnahme: `RecorderState` ist prozess-global, Service `START_NOT_STICKY` —
+  Recovery ist Bestandsverhalten und NICHT Teil dieses Plans.
+- Activity-Recreation stellt die `Screen`-Route (insb. `Detail`) nicht wieder her — Bestandsverhalten;
+  neu saveable sind nur `mainPage` und `hidden` (Hide überlebt Rotation, siehe Checkliste).
+- Kein Persistieren von Suchtext/Filter über App-Neustart, keine Fuzzy-Suche, keine Marker-Suche.
+- Kein FLAG_SECURE/Recents-Verstecken.
+- Keine Instrumentation-/Compose-UI-Tests: Projekt hat keine solche Infrastruktur; Abdeckung der
+  Übergänge erfolgt über die manuelle Checkliste unten.
 
-### 5. Tests / Verifikation
+## Tests / Verifikation
 
-- Neu in `ModelTest` (bzw. eigener Test): `appendLevel` (append, trim, cap 0),
-  `dbTickFraction` (0 dB → 1f, −60 dB ≈ 0.0043f, monoton steigend),
-  `meterSegmentColor`-Zonen (Grenzwerte 0.6/0.75/0.85).
-- Bestehende Unit-Tests bleiben grün: `./gradlew testDebugUnitTest`.
-- `@Preview` für `LiveWaveform`, `DbMeter`, `RecordButtonRow`.
-- Build: `./gradlew assembleDebug` grün.
-- Manueller Check: Aufnahme starten/pausieren/stoppen, Titel kurz vor Stop tippen
-  (EXTRA_TITLE-Race), Marker setzen, Rotation (kein Crash, Historie-Reset akzeptiert).
-
-## Risiken
-
-- Recomposition-Last: Historie capped (~130 Einträge), Canvas zeichnet einmal pro State-Tick (~4/s) —
-  unkritisch; Puls-Animation isoliert im Dot.
-- Collector hängt direkt am `RecorderState.state`-StateFlow innerhalb `LaunchedEffect(s.baseName)`:
-  überlebt Recompositions, startet je Aufnahme neu; cap wird pro Emission frisch gelesen.
-
-## Reihenfolge
-
-1. Model.kt-Logik (`appendLevel`, `dbTickFraction`, `MeterZone`) + Tests (TDD).
-2. BorTheme-Farben + RecordComponents.kt mit Previews.
-3. RecordScreen-Umbau.
-4. `testDebugUnitTest` + `assembleDebug`, manuelle Sichtprüfung.
+- Unit-Tests (`ModelTest`): `matchesLibraryFilter` — Substring case-insensitiv, ALL/TODAY/YESTERDAY,
+  Kombination Query+Filter, leerer Query, kein Match.
+- `./gradlew testDebugUnitTest` + `assembleDebug` grün.
+- Manuelle Checkliste: Swipe hin/zurück; Buttons; Back: Selection→Seite0→Exit-Reihenfolge;
+  Detail öffnen und schließen → landet auf Bibliothek; Titel tippen → sofort HIDE → Doppeltipp
+  zurück → Titel vorhanden; Stop während Hide → Auto-Exit; Suche+Chips kombiniert;
+  Selection setzen, dann filtern → Auswahl auf sichtbare reduziert; Rotation auf Seite 1;
+  **Rotation während Hide → Hide bleibt aktiv**; **Stop per Notification während Bibliothek
+  sichtbar → neue Aufnahme erscheint**; **Selection aktiv lassen, wegswipen, Back → wechselt
+  Seite statt unsichtbare Selection zu räumen (Selection wurde beim Verlassen geleert)**;
+  **Hide-Vollflächigkeit + helle Systembar-Icons auf einem API-<35- und einem API-35-Gerät,
+  jeweils Gesten- und 3-Button-Navigation**; **Titel tippen → sofort zur Bibliothek swipen →
+  Stop per Notification → Dateiname enthält den Titel**; **während Aufnahme wegswipen und
+  zurück → Waveform-Historie intakt**; **Titel tippen → Library → sofort Detail/Settings öffnen
+  → Stop → Dateiname enthält Titel**; **während Aufnahme Detail öffnen und zurück →
+  Waveform-Historie intakt**.

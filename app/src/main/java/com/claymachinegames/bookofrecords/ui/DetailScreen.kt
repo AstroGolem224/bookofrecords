@@ -377,10 +377,3 @@ private fun Chip(label: String, dashed: Boolean = false, onClick: () -> Unit) {
     )
 }
 
-@Composable
-private fun borFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Bor.textPrimary, unfocusedTextColor = Bor.textPrimary,
-    focusedContainerColor = Bor.bg, unfocusedContainerColor = Bor.bg,
-    focusedBorderColor = Bor.borderStrong, unfocusedBorderColor = Bor.border,
-    cursorColor = Bor.accent,
-)

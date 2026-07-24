@@ -98,6 +98,23 @@ fun meterZone(fraction: Float): MeterZone = when {
     else -> MeterZone.ORANGE
 }
 
+enum class DateFilter { ALL, TODAY, YESTERDAY }
+
+/** Library-Filter: Query (case-insensitiver Substring auf baseName) UND Datumsfilter kombiniert.
+ *  today/yesterday als "yyyy-MM-dd" vom Aufrufer — Logik bleibt uhr-frei und testbar. */
+fun matchesLibraryFilter(
+    baseName: String, dateGroup: String, query: String,
+    filter: DateFilter, today: String, yesterday: String,
+): Boolean {
+    val queryOk = query.isBlank() || baseName.contains(query.trim(), ignoreCase = true)
+    val dateOk = when (filter) {
+        DateFilter.ALL -> true
+        DateFilter.TODAY -> dateGroup == today
+        DateFilter.YESTERDAY -> dateGroup == yesterday
+    }
+    return queryOk && dateOk
+}
+
 /** Insert [marker] keeping the list ascending by timeMs (list display + ticks stay chronological). */
 fun insertMarkerSorted(markers: List<Marker>, marker: Marker): List<Marker> {
     val index = markers.indexOfFirst { it.timeMs > marker.timeMs }

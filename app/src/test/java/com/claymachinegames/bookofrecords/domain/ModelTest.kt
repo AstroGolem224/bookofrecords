@@ -125,6 +125,39 @@ class ModelTest {
     }
 
     @Test
+    fun libraryFilterMatchesQueryCaseInsensitive() {
+        assertEquals(true, matchesLibraryFilter("2026-07-24_10-00_BoR_Meeting Notes", "2026-07-24",
+            "meeting", DateFilter.ALL, "2026-07-24", "2026-07-23"))
+        assertEquals(false, matchesLibraryFilter("2026-07-24_10-00_BoR_Meeting Notes", "2026-07-24",
+            "standup", DateFilter.ALL, "2026-07-24", "2026-07-23"))
+        assertEquals(true, matchesLibraryFilter("abc", "2026-07-24",
+            "", DateFilter.ALL, "2026-07-24", "2026-07-23"))
+    }
+
+    @Test
+    fun libraryFilterDateModes() {
+        assertEquals(true, matchesLibraryFilter("a", "2026-07-24", "", DateFilter.TODAY,
+            "2026-07-24", "2026-07-23"))
+        assertEquals(false, matchesLibraryFilter("a", "2026-07-23", "", DateFilter.TODAY,
+            "2026-07-24", "2026-07-23"))
+        assertEquals(true, matchesLibraryFilter("a", "2026-07-23", "", DateFilter.YESTERDAY,
+            "2026-07-24", "2026-07-23"))
+        assertEquals(false, matchesLibraryFilter("a", "2026-07-22", "", DateFilter.YESTERDAY,
+            "2026-07-24", "2026-07-23"))
+        assertEquals(true, matchesLibraryFilter("a", "2020-01-01", "", DateFilter.ALL,
+            "2026-07-24", "2026-07-23"))
+    }
+
+    @Test
+    fun libraryFilterCombinesQueryAndDate() {
+        // Query passt, Datum nicht → false; beide passen → true
+        assertEquals(false, matchesLibraryFilter("Meeting", "2026-07-23", "meet",
+            DateFilter.TODAY, "2026-07-24", "2026-07-23"))
+        assertEquals(true, matchesLibraryFilter("Meeting", "2026-07-24", "meet",
+            DateFilter.TODAY, "2026-07-24", "2026-07-23"))
+    }
+
+    @Test
     fun insertMarkerSortedIntoMiddle() {
         val m1 = Marker(timeMs = 1000)
         val m3 = Marker(timeMs = 3000)

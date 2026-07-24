@@ -32,31 +32,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.claymachinegames.bookofrecords.domain.appendLevel
 import com.claymachinegames.bookofrecords.domain.formatMs
 import com.claymachinegames.bookofrecords.record.RecState
 import com.claymachinegames.bookofrecords.record.RecorderService
 import com.claymachinegames.bookofrecords.record.RecorderState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.map
 
 @Composable
-fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit, onOpenSettings: () -> Unit) {
+fun RecordScreen(
+    hasAudioPermission: Boolean,
+    waveHistory: List<Float>,
+    onWaveWidthPx: (Int) -> Unit,
+    onOpenLibrary: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onHide: () -> Unit,
+) {
     val context = LocalContext.current
     val state by RecorderState.state.collectAsState()
     fun send(action: String) {
@@ -109,30 +113,29 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit, onOpenS
                                 .putExtra(RecorderService.EXTRA_TITLE, titleText))
                     }
                 }
-                RecHeader(paused = s.paused)
+                // Dispose (Detail/Settings-Route zerstört den Pager) darf den Titel im
+                // 400ms-Debounce-Fenster nicht verlieren → letzten Stand flushen
+                val latestTitle by rememberUpdatedState(titleText)
+                DisposableEffect(s.baseName) {
+                    onDispose {
+                        // nur flushen solange DIESE Aufnahme noch läuft — sonst würde der
+                        // startService einen bereits gestoppten Service wiederbeleben
+                        val cur = RecorderState.state.value
+                        if (cur is RecState.Recording && cur.baseName == s.baseName
+                            && cur.title != latestTitle) {
+                            context.startService(
+                                RecorderService.intent(context, RecorderService.ACTION_SET_TITLE)
+                                    .putExtra(RecorderService.EXTRA_TITLE, latestTitle))
+                        }
+                    }
+                }
+                RecHeader(paused = s.paused, onHide = onHide)
                 Spacer(Modifier.height(14.dp))
                 TitleField(text = titleText, onChange = { titleText = it })
                 Spacer(Modifier.height(12.dp))
 
-                // Waveform: Historie überlebt Recompositions, Reset je Aufnahme; Rotation-Reset akzeptiert
-                val density = LocalDensity.current
-                var waveHistory by remember(s.baseName) { mutableStateOf(listOf<Float>()) }
-                val waveCap = remember { mutableIntStateOf(0) }
-                LaunchedEffect(s.baseName) {
-                    // direkt am StateFlow (snapshotFlow trackt StateFlow.value nicht)
-                    RecorderState.state
-                        .map { it as? RecState.Recording }
-                        .filterNotNull()
-                        .distinctUntilChangedBy { it.elapsedMs }
-                        .collect { rec ->
-                            // vor erstem onSizeChanged (width=0) unbegrenzt sammeln statt auf 1 trimmen
-                            val cap = if (waveCap.intValue == 0) Int.MAX_VALUE
-                                      else (waveCap.intValue / with(density) { 3.dp.toPx() }.toInt())
-                                          .coerceAtLeast(1)
-                            waveHistory = appendLevel(waveHistory, rec.level, cap)
-                        }
-                }
-                LiveWaveform(levels = waveHistory, onWidthPx = { waveCap.intValue = it })
+                // Historie lebt in App() — überlebt Pager-Disposal und Detail/Settings-Ausflüge
+                LiveWaveform(levels = waveHistory, onWidthPx = onWaveWidthPx)
 
                 Row(verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 14.dp, bottom = 10.dp)) {
@@ -187,7 +190,7 @@ fun RecordScreen(hasAudioPermission: Boolean, onOpenLibrary: () -> Unit, onOpenS
 }
 
 @Composable
-private fun RecHeader(paused: Boolean) {
+private fun RecHeader(paused: Boolean, onHide: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Box(Modifier.size(8.dp).background(
             if (paused) Bor.textMuted else Bor.accent, CircleShape))
@@ -195,6 +198,13 @@ private fun RecHeader(paused: Boolean) {
         Text(if (paused) "PAUSE" else "REC",
             color = if (paused) Bor.textMuted else Bor.accent,
             fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        Spacer(Modifier.weight(1f))
+        // dezente HIDE-Pill im freien Header-Slot (statt unter den Buttons: kein Überlauf bei IME)
+        Text("HIDE", color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+            modifier = Modifier
+                .border(1.dp, Bor.border, RoundedCornerShape(50))
+                .clickable(onClick = onHide)
+                .padding(horizontal = 12.dp, vertical = 4.dp))
     }
 }
 

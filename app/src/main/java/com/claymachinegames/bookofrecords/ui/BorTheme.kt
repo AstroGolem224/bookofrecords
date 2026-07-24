@@ -1,6 +1,7 @@
 package com.claymachinegames.bookofrecords.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -43,3 +44,11 @@ fun BorTheme(content: @Composable () -> Unit) {
         content = content,
     )
 }
+
+@Composable
+internal fun borFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Bor.textPrimary, unfocusedTextColor = Bor.textPrimary,
+    focusedContainerColor = Bor.bg, unfocusedContainerColor = Bor.bg,
+    focusedBorderColor = Bor.borderStrong, unfocusedBorderColor = Bor.border,
+    cursorColor = Bor.accent,
+)

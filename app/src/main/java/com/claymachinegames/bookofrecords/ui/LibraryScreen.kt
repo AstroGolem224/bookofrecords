@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,17 +48,23 @@ import com.claymachinegames.bookofrecords.data.LibraryStore
 import com.claymachinegames.bookofrecords.data.LibraryUnavailableException
 import com.claymachinegames.bookofrecords.data.RecordingEntry
 import com.claymachinegames.bookofrecords.data.exportZip
+import com.claymachinegames.bookofrecords.domain.DateFilter
 import com.claymachinegames.bookofrecords.domain.dateFolder
 import com.claymachinegames.bookofrecords.domain.formatMs
+import com.claymachinegames.bookofrecords.domain.matchesLibraryFilter
 import com.claymachinegames.bookofrecords.domain.titlePartOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 @Composable
 fun LibraryScreen(
     store: LibraryStore,
+    isActive: Boolean,
+    refreshToken: Int,
     onOpen: (RecordingEntry) -> Unit,
     onNewRecording: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -69,8 +77,14 @@ fun LibraryScreen(
     var unreachable by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<Uri>()) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var dateFilter by rememberSaveable { mutableStateOf(DateFilter.ALL) }
 
-    LaunchedEffect(store) {
+    // Laden nur wenn die Seite gesettelt aktiv ist (Pager komponiert offscreen vor);
+    // isActive-Flip false→true rekeyt den Effect = Refresh beim Seiteneintritt,
+    // refreshToken deckt Aufnahme-Ende bei bereits sichtbarer Bibliothek ab
+    LaunchedEffect(store, refreshToken, isActive) {
+        if (!isActive) return@LaunchedEffect
         loaded = false
         unreachable = false
         onSweep()
@@ -84,11 +98,17 @@ fun LibraryScreen(
         loaded = true
     }
 
+    // Selection überlebt das Verlassen der Seite nicht (sonst kann ein offscreen
+    // komponierter Rest Back stehlen oder unsichtbare Auswahl wieder auftauchen)
+    LaunchedEffect(isActive) {
+        if (!isActive) { selected = emptySet(); selectionMode = false }
+    }
+
     val zipLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
-            val chosen = entries.filter { it.audioUri in selected }
+            val chosen = entries.filter { it.audioUri in selected }   // selected ⊆ visible (Intersect oben)
             scope.launch {
                 runCatching {
                     withContext(Dispatchers.IO) {
@@ -107,14 +127,30 @@ fun LibraryScreen(
         }
     }
 
-    if (selectionMode) {
+    if (selectionMode && isActive) {
         BackHandler {
             selected = emptySet()
             selectionMode = false
         }
     }
 
-    val groups = entries.groupBy { it.dateGroup }.entries.sortedByDescending { it.key }
+    // today als Ticker-State: Mitternacht/Zeitzonen-Wechsel korrigiert sich binnen 1 min
+    var today by remember { mutableStateOf(LocalDate.now().toString()) }
+    LaunchedEffect(Unit) {
+        while (true) { today = LocalDate.now().toString(); delay(60_000) }
+    }
+    val yesterday = LocalDate.parse(today).minusDays(1).toString()
+
+    val visible = entries.filter {
+        matchesLibraryFilter(it.baseName, it.dateGroup, query, dateFilter, today, yesterday)
+    }
+    // Filter/Suche darf keine unsichtbaren Dateien im Export lassen
+    LaunchedEffect(visible) {
+        val visibleUris = visible.map { it.audioUri }.toSet()
+        if (!selected.all { it in visibleUris }) selected = selected intersect visibleUris
+    }
+
+    val groups = visible.groupBy { it.dateGroup }.entries.sortedByDescending { it.key }
 
     Column(Modifier.fillMaxSize().background(Bor.bg).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -126,7 +162,7 @@ fun LibraryScreen(
                 }
                 TextButton(
                     onClick = {
-                        val chosen = entries.filter { it.audioUri in selected }
+                        val chosen = visible.filter { it.audioUri in selected }
                         val name = if (chosen.size == 1) "${chosen.first().baseName}.zip"
                                    else "BookofRecords_${dateFolder(LocalDateTime.now())}_${chosen.size}.zip"
                         zipLauncher.launch(name)
@@ -144,6 +180,30 @@ fun LibraryScreen(
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("Suchen…", color = Bor.textMuted) },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    TextButton(onClick = { query = "" }) { Text("×", color = Bor.textMuted, fontSize = 16.sp) }
+                }
+            },
+            singleLine = true,
+            colors = borFieldColors(),
+            shape = RoundedCornerShape(6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row {
+            FilterChipPill("Alle", dateFilter == DateFilter.ALL) { dateFilter = DateFilter.ALL }
+            Spacer(Modifier.width(8.dp))
+            FilterChipPill("Heute", dateFilter == DateFilter.TODAY) { dateFilter = DateFilter.TODAY }
+            Spacer(Modifier.width(8.dp))
+            FilterChipPill("Gestern", dateFilter == DateFilter.YESTERDAY) { dateFilter = DateFilter.YESTERDAY }
+        }
+        // Empty-State-Präzedenz (exklusiv): unreachable → lädt → leer → gefiltert leer → Liste
         if (unreachable) {
             Column(Modifier.padding(top = 24.dp)) {
                 Text("Speicherordner nicht erreichbar", color = Bor.accent, fontSize = 14.sp)
@@ -152,6 +212,9 @@ fun LibraryScreen(
             }
         } else if (loaded && entries.isEmpty()) {
             Text("Noch keine Aufnahmen.", color = Bor.textSecondary,
+                modifier = Modifier.padding(top = 24.dp))
+        } else if (loaded && visible.isEmpty()) {
+            Text("Keine Treffer.", color = Bor.textSecondary,
                 modifier = Modifier.padding(top = 24.dp))
         }
         LazyColumn(Modifier.weight(1f).padding(top = 8.dp)) {
@@ -181,6 +244,19 @@ fun LibraryScreen(
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) { Text("● Neue Aufnahme", color = Bor.accent, fontSize = 15.sp) }
     }
+}
+
+@Composable
+private fun FilterChipPill(label: String, active: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (active) Bor.textPrimary else Bor.textSecondary,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .border(1.dp, if (active) Bor.accent else Bor.border, RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 5.dp),
+    )
 }
 
 @Composable
