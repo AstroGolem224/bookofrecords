@@ -46,6 +46,7 @@ import com.claymachinegames.bookofrecords.data.Settings
 import com.claymachinegames.bookofrecords.domain.appendLevel
 import com.claymachinegames.bookofrecords.record.RecState
 import com.claymachinegames.bookofrecords.record.RecorderState
+import com.claymachinegames.bookofrecords.ui.AmbientBackground
 import com.claymachinegames.bookofrecords.ui.Bor
 import com.claymachinegames.bookofrecords.ui.BorTheme
 import com.claymachinegames.bookofrecords.ui.DetailScreen
@@ -82,6 +83,9 @@ class MainActivity : ComponentActivity() {
                     // Inhalt bleibt in der Safe-Zone (inkl. IME); Hide-Overlay liegt UNGEPOLSTERT
                     // darüber und hält App() komponiert (Debounce/Pager/Listen überleben)
                     Box(Modifier.fillMaxSize().background(Bor.bg)) {
+                        // Ambient-Glows aus der Startscreen-Spec liegen unter ALLEN Screens
+                        // (ungepolstert, malt auch hinter die Systembars); Hide deckt sie ab
+                        AmbientBackground()
                         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                             App(onHide = { hidden = true })
                         }

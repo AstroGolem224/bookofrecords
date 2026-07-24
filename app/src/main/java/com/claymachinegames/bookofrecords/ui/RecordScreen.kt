@@ -72,7 +72,7 @@ fun RecordScreen(
         is RecState.Recording -> {
             // Der Recording-Zweig behält sein bestehendes flexibles Layout unverändert.
             Column(
-                modifier = Modifier.fillMaxSize().background(Bor.bg).padding(24.dp),
+                modifier = Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 var titleText by remember(s.baseName) { mutableStateOf(s.title) }

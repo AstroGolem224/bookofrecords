@@ -152,7 +152,7 @@ fun LibraryScreen(
 
     val groups = visible.groupBy { it.dateGroup }.entries.sortedByDescending { it.key }
 
-    Column(Modifier.fillMaxSize().background(Bor.bg).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selectionMode) {
                 Text("${selected.size} ausgewählt", color = Bor.textPrimary,

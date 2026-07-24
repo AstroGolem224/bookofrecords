@@ -124,7 +124,7 @@ fun DetailScreen(store: LibraryStore, entry: RecordingEntry, onClose: () -> Unit
 
     val duration = player.duration.coerceAtLeast(1)
 
-    Column(Modifier.fillMaxSize().background(Bor.bg).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Zurück", tint = Bor.textSecondary)

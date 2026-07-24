@@ -262,7 +262,7 @@ fun IdleStartScreen(
             (maxHeight.value - dockHeight).coerceAtLeast(451.7f * scale),
         )
 
-        IdleAmbientBackground(scale = scale, compositionWidth = compositionWidth)
+        // Ambient-Hintergrund kommt global aus MainActivity (liegt unter allen Screens)
         Box(
             Modifier.width(compositionWidth).fillMaxHeight().align(Alignment.TopCenter),
         ) {
@@ -332,10 +332,13 @@ fun IdleStartScreen(
     }
 }
 
+/** Ambient-Hintergrund aus der Startscreen-Spec (Basis-Verlauf + drei Radial-Glows).
+ *  Selbstständig skalierend — app-weit unter allen Screens nutzbar (außer HideScreen). */
 @Composable
-private fun IdleAmbientBackground(scale: Float, compositionWidth: androidx.compose.ui.unit.Dp) {
-    Canvas(Modifier.fillMaxSize()) {
-        val left = (size.width - compositionWidth.toPx()) / 2f
+fun AmbientBackground(modifier: Modifier = Modifier) {
+    Canvas(modifier.fillMaxSize()) {
+        val scale = minOf(size.width / (412.dp.toPx()), 1f)
+        val left = (size.width - 412.dp.toPx() * scale) / 2f
         val px = { baselinePx: Float -> baselinePx / ReferencePxPerDp * scale.dp.toPx() }
         drawRect(Brush.verticalGradient(listOf(Bor.idleBgBase, Bor.idleBgEnd)))
         drawRect(Brush.radialGradient(
