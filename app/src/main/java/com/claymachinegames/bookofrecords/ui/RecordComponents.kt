@@ -32,7 +32,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -76,11 +75,17 @@ fun LiveWaveform(levels: List<Float>, modifier: Modifier = Modifier, onWidthPx: 
         val barW = 2.dp.toPx()
         val step = barW + 1.dp.toPx()
         val midY = size.height / 2f
-        val brush = Brush.horizontalGradient(0f to Bor.waveCold, 1f to Bor.violet)
+        val brush = Brush.horizontalGradient(
+            0f to Bor.idleCyan,
+            .28f to Bor.idleBlue,
+            .50f to Bor.idleWaveHi,
+            .72f to Bor.idleVioletHi,
+            1f to Bor.idleViolet,
+        )
         val playheadX = size.width - 2.dp.toPx()
         if (levels.isEmpty()) {
             // Idle: ruhende Grundlinie statt Playhead
-            drawLine(Bor.borderSubtle, Offset(0f, midY), Offset(size.width, midY),
+            drawLine(Bor.idleOutline.copy(alpha = .24f), Offset(0f, midY), Offset(size.width, midY),
                 strokeWidth = 1.dp.toPx())
             return@Canvas
         }
@@ -91,9 +96,9 @@ fun LiveWaveform(levels: List<Float>, modifier: Modifier = Modifier, onWidthPx: 
             drawLine(brush, Offset(x, midY - h), Offset(x, midY + h),
                 strokeWidth = barW, cap = StrokeCap.Round)
         }
-        drawLine(Bor.accent, Offset(playheadX, 6.dp.toPx()), Offset(playheadX, size.height),
+        drawLine(Bor.idleAmber, Offset(playheadX, 6.dp.toPx()), Offset(playheadX, size.height),
             strokeWidth = 1.5f.dp.toPx())
-        drawCircle(Bor.accent, radius = 3.dp.toPx(), center = Offset(playheadX, 4.dp.toPx()))
+        drawCircle(Bor.idleAmberHi, radius = 3.dp.toPx(), center = Offset(playheadX, 4.dp.toPx()))
     }
 }
 
@@ -112,7 +117,8 @@ fun DbMeter(level: Float, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth().height(14.dp)) {
         repeat(segments) { i ->
             val frac = (i + 1f) / segments
-            val color = if (frac <= level) zoneColor(meterZone(frac)) else Bor.borderSubtle
+            val color = if (frac <= level) zoneColor(meterZone(frac))
+                else Bor.idleOutline.copy(alpha = .24f)
             Box(Modifier.weight(1f).height(14.dp).background(color))
         }
     }
@@ -127,12 +133,13 @@ fun DbScale(modifier: Modifier = Modifier) {
         listOf(-36, -24, -12).forEach { db ->
             val xDp = with(density) { (widthPx * dbTickFraction(db)).toDp() }
             Text("$db",
-                color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+                color = Bor.idleTextSecondary, fontFamily = BarlowSemiCondensed, fontSize = 10.sp,
                 modifier = Modifier.align(Alignment.CenterStart)
                     .padding(start = (xDp - 8.dp).coerceAtLeast(0.dp)))
         }
         // 0-dB-Tick liegt bei Fraction 1.0 → rechtsbündig, damit "dB" nie abgeschnitten wird
-        Text("0 dB", color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+        Text("0 dB", color = Bor.idleTextSecondary,
+            fontFamily = BarlowSemiCondensed, fontSize = 10.sp,
             modifier = Modifier.align(Alignment.CenterEnd))
     }
 }
@@ -147,11 +154,10 @@ fun PulsingRecDot(paused: Boolean, modifier: Modifier = Modifier) {
         a
     }
     Box(modifier.size(12.dp).alpha(alpha)
-        .background(if (paused) Bor.textMuted else Bor.accent, CircleShape))
+        .background(if (paused) Bor.idleDockLabel else Bor.idleAmber, CircleShape))
 }
 
-/** Stop · Pause/Resume · Marker im Referenz-Layout. Icons selbst gezeichnet
- *  (material-icons-extended nicht als Dependency — Quadrat/Balken/Bookmark sind trivial). */
+/** Stop · Pause/Resume · Marker im Player-Cluster. Icons werden bewusst per Canvas gezeichnet. */
 @Composable
 fun RecordButtonRow(
     paused: Boolean,
@@ -160,33 +166,169 @@ fun RecordButtonRow(
     onMarker: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onStop,
-            modifier = Modifier.size(64.dp).background(Bor.surface, CircleShape)) {
-            Box(Modifier.size(18.dp).background(Bor.textPrimary, RoundedCornerShape(3.dp)))
+    Row(
+        modifier = modifier.fillMaxWidth().height(108.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RecordingGlassControl(
+            description = "Aufnahme stoppen",
+            borderStart = Bor.idleCyan.copy(alpha = .72f),
+            borderEnd = Bor.idleOutline.copy(alpha = .42f),
+            onClick = onStop,
+        ) {
+            Box(Modifier.size(18.dp).background(Bor.idleTextPrimary, RoundedCornerShape(3.dp)))
         }
-        // Mockup: amberfarbener Pause-Ring; Record-Punkt (fortsetzen) bleibt rot
-        IconButton(onClick = onPauseResume,
-            modifier = Modifier.size(96.dp)
-                .background(Bor.surface, CircleShape)
-                .border(3.dp, Bor.amber, CircleShape)) {
-            if (paused) Box(Modifier.size(28.dp).background(Bor.accent, CircleShape))
-            else Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Box(Modifier.width(8.dp).height(28.dp)
-                    .background(Bor.amber, RoundedCornerShape(2.dp)))
-                Box(Modifier.width(8.dp).height(28.dp)
-                    .background(Bor.amber, RoundedCornerShape(2.dp)))
-            }
-        }
+        RecordingPauseControl(paused = paused, onClick = onPauseResume)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            IconButton(onClick = onMarker, enabled = !paused,
-                modifier = Modifier.size(64.dp).background(Bor.surface, CircleShape)) {
-                BookmarkIcon(color = if (paused) Bor.textMuted else Bor.textPrimary)
+            RecordingGlassControl(
+                description = "Marker setzen",
+                enabled = !paused,
+                borderStart = Bor.idleOutline.copy(alpha = .42f),
+                borderEnd = Bor.idleViolet.copy(alpha = .72f),
+                onClick = onMarker,
+            ) {
+                BookmarkIcon(color = Bor.idleTextPrimary)
             }
-            Text("MARK", color = if (paused) Bor.textMuted else Bor.textSecondary,
-                fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text(
+                "MARK",
+                color = Bor.idleDockLabel,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 1.2.sp,
+                fontFamily = BarlowSemiCondensed,
+                modifier = Modifier.alpha(if (paused) .38f else 1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecordingGlassControl(
+    description: String,
+    borderStart: Color,
+    borderEnd: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) .96f else 1f,
+        animationSpec = if (pressed) tween(90) else spring(
+            dampingRatio = 1f,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "recordGlassPress",
+    )
+    val rimFactor = if (pressed) .85f else 1f
+    GlassSurface(
+        scale = 1f,
+        radiusDp = 32f,
+        modifier = modifier
+            .size(64.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+                alpha = if (enabled) 1f else .38f
+            }
+            .semantics { contentDescription = description }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            ),
+        borderStart = borderStart.copy(alpha = borderStart.alpha * rimFactor),
+        borderEnd = borderEnd.copy(alpha = borderEnd.alpha * rimFactor),
+        showGlow = enabled,
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+    }
+}
+
+@Composable
+private fun RecordingPauseControl(
+    paused: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) .96f else 1f,
+        animationSpec = if (pressed) tween(90) else spring(
+            dampingRatio = 1f,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "recordPausePress",
+    )
+    val amber = if (pressed) Bor.idleAmber.copy(alpha = .85f) else Bor.idleAmber
+    Box(
+        modifier
+            .size(100.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .semantics { contentDescription = if (paused) "Aufnahme fortsetzen" else "Aufnahme pausieren" }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(amber.copy(alpha = .20f), Color.Transparent),
+                    center = center,
+                    radius = 50.dp.toPx(),
+                ),
+                radius = 50.dp.toPx(),
+            )
+            drawCircle(Bor.idleControl.copy(alpha = .82f), radius = 46.dp.toPx())
+            drawCircle(
+                Bor.idleOutline.copy(alpha = .55f),
+                radius = 46.dp.toPx(),
+                style = Stroke(1.dp.toPx()),
+            )
+            drawCircle(amber, radius = 41.dp.toPx(), style = Stroke(2.dp.toPx()))
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Bor.idleAmberHi, amber),
+                    center = Offset(center.x - 8.dp.toPx(), center.y - 8.dp.toPx()),
+                    radius = 36.dp.toPx(),
+                ),
+                radius = 26.dp.toPx(),
+            )
+            if (paused) {
+                val play = Path().apply {
+                    moveTo(center.x - 7.dp.toPx(), center.y - 12.dp.toPx())
+                    lineTo(center.x + 12.dp.toPx(), center.y)
+                    lineTo(center.x - 7.dp.toPx(), center.y + 12.dp.toPx())
+                    close()
+                }
+                drawPath(play, Bor.idleGlass)
+            } else {
+                val barWidth = 5.dp.toPx()
+                val barHeight = 24.dp.toPx()
+                drawRoundRect(
+                    Bor.idleGlass,
+                    topLeft = Offset(center.x - 8.dp.toPx(), center.y - barHeight / 2f),
+                    size = Size(barWidth, barHeight),
+                    cornerRadius = CornerRadius(1.5.dp.toPx()),
+                )
+                drawRoundRect(
+                    Bor.idleGlass,
+                    topLeft = Offset(center.x + 3.dp.toPx(), center.y - barHeight / 2f),
+                    size = Size(barWidth, barHeight),
+                    cornerRadius = CornerRadius(1.5.dp.toPx()),
+                )
+            }
         }
     }
 }
@@ -391,6 +533,7 @@ fun GlassSurface(
     modifier: Modifier = Modifier,
     borderStart: Color = Bor.idleCyan,
     borderEnd: Color = Bor.idleViolet,
+    showGlow: Boolean = true,
     content: @Composable () -> Unit = {},
 ) {
     val radius = radiusDp.dp * scale
@@ -405,16 +548,18 @@ fun GlassSurface(
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val corner = CornerRadius(radius.toPx())
-            val glowStroke = Stroke(5.dp.toPx() * scale)
-            drawRoundRect(
-                brush = Brush.horizontalGradient(listOf(
-                    borderStart.copy(alpha = 0.18f),
-                    Color.Transparent,
-                    borderEnd.copy(alpha = 0.22f),
-                )),
-                cornerRadius = corner,
-                style = glowStroke,
-            )
+            if (showGlow) {
+                val glowStroke = Stroke(5.dp.toPx() * scale)
+                drawRoundRect(
+                    brush = Brush.horizontalGradient(listOf(
+                        borderStart.copy(alpha = 0.18f),
+                        Color.Transparent,
+                        borderEnd.copy(alpha = 0.22f),
+                    )),
+                    cornerRadius = corner,
+                    style = glowStroke,
+                )
+            }
             drawRoundRect(
                 brush = Brush.linearGradient(
                     colors = listOf(
