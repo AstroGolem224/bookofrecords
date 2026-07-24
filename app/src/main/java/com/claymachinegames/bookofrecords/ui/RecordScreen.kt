@@ -19,13 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -44,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.claymachinegames.bookofrecords.domain.formatMs
@@ -77,31 +75,45 @@ fun RecordScreen(
     ) {
         when (val s = state) {
             is RecState.Idle -> {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Spacer(Modifier.size(48.dp))   // Balance zum Settings-Icon rechts
+                    Text("Recorder", color = Bor.textPrimary,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center)
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.textMuted)
                     }
                 }
-                Spacer(Modifier.height(72.dp))
-                Text("BookofRecords", color = Bor.textPrimary,
-                    style = MaterialTheme.typography.headlineMedium)
-                Spacer(Modifier.height(48.dp))
-                Button(
+                Spacer(Modifier.weight(0.6f))
+                // ruhende Waveform-Grundlinie als Platzhalter
+                LiveWaveform(levels = emptyList())
+                Spacer(Modifier.height(28.dp))
+                Text("00:00:00", color = Bor.textMuted,
+                    fontFamily = FontFamily.Monospace, fontSize = 48.sp)
+                Spacer(Modifier.height(36.dp))
+                // großer runder Record-Button im Stil der Recording-Button-Zeile
+                IconButton(
                     onClick = { send(RecorderService.ACTION_START) },
                     enabled = hasAudioPermission,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Bor.accent, contentColor = Bor.onAccent),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().height(72.dp),
-                ) { Text("● Aufnahme starten", fontSize = 18.sp) }
+                    modifier = Modifier.size(96.dp)
+                        .background(Bor.surface, CircleShape)
+                        .border(3.dp, if (hasAudioPermission) Bor.accent else Bor.textMuted,
+                            CircleShape),
+                ) {
+                    Box(Modifier.size(32.dp).background(
+                        if (hasAudioPermission) Bor.accent else Bor.textMuted, CircleShape))
+                }
                 if (!hasAudioPermission) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text("Mikrofon-Berechtigung fehlt", color = Bor.accent, fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
                 TextButton(onClick = onOpenLibrary) {
-                    Text("Bibliothek", color = Bor.textSecondary)
+                    Text("Bibliothek ›", color = Bor.textSecondary)
                 }
+                Spacer(Modifier.weight(1f))
             }
             is RecState.Recording -> {
                 var titleText by remember(s.baseName) { mutableStateOf(s.title) }

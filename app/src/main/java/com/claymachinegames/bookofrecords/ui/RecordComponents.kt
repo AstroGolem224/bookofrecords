@@ -54,6 +54,12 @@ fun LiveWaveform(levels: List<Float>, modifier: Modifier = Modifier, onWidthPx: 
         val midY = size.height / 2f
         val brush = Brush.horizontalGradient(0f to Bor.waveCold, 1f to Bor.accent)
         val playheadX = size.width - 2.dp.toPx()
+        if (levels.isEmpty()) {
+            // Idle: ruhende Grundlinie statt Playhead
+            drawLine(Bor.borderSubtle, Offset(0f, midY), Offset(size.width, midY),
+                strokeWidth = 1.dp.toPx())
+            return@Canvas
+        }
         levels.asReversed().forEachIndexed { i, level ->
             val x = playheadX - step * (i + 1)
             if (x < 0) return@forEachIndexed
