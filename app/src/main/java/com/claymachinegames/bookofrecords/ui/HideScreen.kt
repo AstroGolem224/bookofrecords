@@ -71,7 +71,9 @@ fun HideScreen(onExit: () -> Unit) {
                 .size(6.dp)
                 .alpha(0.35f)
                 .background(
-                    if (recording?.paused == true) Bor.textMuted else Bor.accent,
+                    // bewusst rot statt Theme-Akzent: Hide-Screen ist vom
+                    // Amber/Petrol-Schema ausgenommen, Punkt = klassisches REC-Signal
+                    if (recording?.paused == true) Bor.textMuted else Color(0xFFCC3B31),
                     CircleShape,
                 ),
         )

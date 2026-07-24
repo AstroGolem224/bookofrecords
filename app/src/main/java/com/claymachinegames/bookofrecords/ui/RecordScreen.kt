@@ -78,8 +78,9 @@ fun RecordScreen(
                 Row(verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()) {
                     Spacer(Modifier.size(48.dp))   // Balance zum Settings-Icon rechts
-                    Text("Recorder", color = Bor.textPrimary,
-                        style = MaterialTheme.typography.titleLarge,
+                    Text("RECORDER", color = Bor.teal,
+                        style = MaterialTheme.typography.titleMedium,
+                        letterSpacing = 6.sp,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center)
                     IconButton(onClick = onOpenSettings) {
