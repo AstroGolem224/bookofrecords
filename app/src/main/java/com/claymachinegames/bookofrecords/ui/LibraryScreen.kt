@@ -268,7 +268,8 @@ private fun EntryCard(
     onToggle: () -> Unit,
 ) {
     val title = titlePartOf(e.baseName)?.takeIf { it.isNotEmpty() } ?: e.baseName
-    val time = Regex("""_(\d{2}-\d{2})_BoR""").find(e.baseName)?.groupValues?.get(1) ?: ""
+    val time = Regex("""_(\d{2})-(\d{2})_BoR""").find(e.baseName)
+        ?.let { "${it.groupValues[1]}:${it.groupValues[2]}" } ?: ""
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp)
             .background(Bor.surface, RoundedCornerShape(8.dp))
@@ -291,8 +292,8 @@ private fun EntryCard(
             Row {
                 Text(
                     listOfNotNull(
-                        time.takeIf { it.isNotEmpty() },
-                        formatMs(e.durationMs),
+                        time.takeIf { it.isNotEmpty() }?.let { "Uhrzeit $it" },
+                        "Dauer ${formatMs(e.durationMs)}",
                         "${e.markerCount} ◆",
                     ).joinToString(" · "),
                     color = Bor.textSecondary, fontFamily = FontFamily.Monospace, fontSize = 11.5.sp,
