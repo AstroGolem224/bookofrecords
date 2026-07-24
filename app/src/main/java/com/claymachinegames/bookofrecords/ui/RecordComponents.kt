@@ -222,9 +222,9 @@ fun WaveLogo(modifier: Modifier = Modifier) {
     }
 }
 
-/** Glaskarte mit statischer Deko-Waveform, Amber-Playhead mittig und Status-Label. */
+/** Glaskarte mit statischer Deko-Waveform und Amber-Playhead mittig. */
 @Composable
-fun IdleWaveformCard(label: String, modifier: Modifier = Modifier) {
+fun IdleWaveformCard(modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(24.dp)
     Box(
         modifier.fillMaxWidth().height(180.dp)
@@ -232,34 +232,35 @@ fun IdleWaveformCard(label: String, modifier: Modifier = Modifier) {
             .border(1.dp, Brush.linearGradient(listOf(
                 Bor.waveCold.copy(alpha = 0.7f), Bor.violet.copy(alpha = 0.7f))), shape),
     ) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp).align(Alignment.TopCenter)
-            .padding(top = 18.dp).padding(horizontal = 18.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(110.dp).align(Alignment.BottomCenter)
+            .padding(bottom = 22.dp).padding(horizontal = 18.dp)) {
             val bars = 64
             val step = size.width / bars
             val midY = size.height / 2f
             val brush = Brush.horizontalGradient(
                 0f to Bor.waveCold, 0.5f to Color(0xFFB8E4F5), 1f to Bor.violet)
             repeat(bars) { i ->
-                // deterministische Pseudo-Waveform (kein Random: reproduzierbar, preview-stabil)
+                // deterministische Pseudo-Waveform (kein Random: reproduzierbar, preview-stabil);
+                // drei nicht-harmonische Sinusse = unregelmäßig, Hüllkurve = Fade-in/-out an den Rändern
                 val t = i.toFloat()
-                val f = (0.25f + 0.75f *
-                    kotlin.math.abs(kotlin.math.sin(t * 0.55f)) *
-                    (0.4f + 0.6f * kotlin.math.abs(kotlin.math.sin(t * 0.13f + 1.7f))))
+                val envelope = kotlin.math.sin(Math.PI.toFloat() * i / (bars - 1f))
+                    .let { kotlin.math.sqrt(it) }
+                val f = 0.12f + 0.88f *
+                    (0.5f * kotlin.math.abs(kotlin.math.sin(t * 0.83f + 0.5f)) +
+                     0.3f * kotlin.math.abs(kotlin.math.sin(t * 1.71f + 2.1f)) +
+                     0.2f * kotlin.math.abs(kotlin.math.sin(t * 0.29f + 4.4f)))
                 val x = step * i + step / 2f
-                val h = f * midY * 0.9f
+                val h = f * envelope * midY * 0.95f
                 drawLine(brush, Offset(x, midY - h), Offset(x, midY + h),
                     strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
             }
             // Amber-Playhead mit Endpunkten, mittig
             val cx = size.width / 2f
-            drawLine(Bor.accent, Offset(cx, -8.dp.toPx()), Offset(cx, size.height + 8.dp.toPx()),
+            drawLine(Bor.accent, Offset(cx, 0f), Offset(cx, size.height),
                 strokeWidth = 2.dp.toPx())
-            drawCircle(Bor.accent, 3.5f.dp.toPx(), Offset(cx, -8.dp.toPx()))
-            drawCircle(Bor.accent, 3.5f.dp.toPx(), Offset(cx, size.height + 8.dp.toPx()))
+            drawCircle(Bor.accent, 3.5f.dp.toPx(), Offset(cx, 0f))
+            drawCircle(Bor.accent, 3.5f.dp.toPx(), Offset(cx, size.height))
         }
-        Text(label, color = Bor.textSecondary, fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace, letterSpacing = 4.sp,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
     }
 }
 

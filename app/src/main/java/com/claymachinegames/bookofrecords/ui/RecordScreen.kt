@@ -96,7 +96,7 @@ fun RecordScreen(
                     ) { Icon(Icons.Filled.Settings, "Einstellungen", tint = Bor.waveCold) }
                 }
                 Spacer(Modifier.height(28.dp))
-                IdleWaveformCard(label = "BEREIT")
+                IdleWaveformCard()
                 Spacer(Modifier.weight(0.5f))
                 Text("00:00:00", color = Bor.textPrimary.copy(alpha = 0.85f),
                     fontFamily = FontFamily.Monospace, fontSize = 52.sp,
@@ -106,27 +106,27 @@ fun RecordScreen(
                     Text("Mikrofon-Berechtigung fehlt", color = Bor.accent, fontSize = 13.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                // Glas-Bottombar: Bibliothek · Record · Hide
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth()
-                        .background(Bor.surface.copy(alpha = 0.55f), RoundedCornerShape(28.dp))
-                        .border(1.dp, Bor.borderSubtle, RoundedCornerShape(28.dp))
-                        .padding(vertical = 14.dp),
-                ) {
-                    GlassActionButton("BIBLIOTHEK", onClick = onOpenLibrary) { LibraryIcon() }
-                    IconButton(
-                        onClick = { send(RecorderService.ACTION_START) },
-                        enabled = hasAudioPermission,
-                        modifier = Modifier.size(84.dp)
-                            .border(2.dp, if (hasAudioPermission) Bor.accent else Bor.textMuted,
-                                CircleShape),
-                    ) {
-                        Box(Modifier.size(56.dp).background(
-                            if (hasAudioPermission) Bor.accent else Bor.textMuted, CircleShape))
+                // Bottombar ohne Rahmen: drei gleiche Spalten → Amber-Button exakt mittig
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        GlassActionButton("BIBLIOTHEK", onClick = onOpenLibrary) { LibraryIcon() }
                     }
-                    GlassActionButton("HIDE", onClick = onHide) { HideIcon() }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        IconButton(
+                            onClick = { send(RecorderService.ACTION_START) },
+                            enabled = hasAudioPermission,
+                            modifier = Modifier.size(84.dp)
+                                .border(2.dp, if (hasAudioPermission) Bor.accent else Bor.textMuted,
+                                    CircleShape),
+                        ) {
+                            Box(Modifier.size(56.dp).background(
+                                if (hasAudioPermission) Bor.accent else Bor.textMuted, CircleShape))
+                        }
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        GlassActionButton("HIDE", onClick = onHide) { HideIcon() }
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
             }
