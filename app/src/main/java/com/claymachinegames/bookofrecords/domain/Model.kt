@@ -67,7 +67,8 @@ fun withTitle(base: String, newTitle: String): String {
     val m = borMarker.find(base)
     val prefix = if (m != null) base.substring(0, m.range.first) + "_BoR"
                  else base + "_BoR"
-    val t = sanitizeTitle(newTitle)
+    // Rename-Dialog kann den vollen BoR-Namen als "Titel" liefern — nur Titel-Teil übernehmen.
+    val t = sanitizeTitle(titlePartOf(newTitle) ?: newTitle)
     return if (t.isEmpty()) prefix else "${prefix}_$t"
 }
 

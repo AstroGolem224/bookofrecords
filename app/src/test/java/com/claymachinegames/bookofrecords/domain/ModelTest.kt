@@ -80,6 +80,18 @@ class ModelTest {
     }
 
     @Test
+    fun withTitleUnwrapsFullBaseNamePassedAsTitle() {
+        // Rename-Dialog füllt bei unbetitelten Aufnahmen den vollen baseName vor —
+        // unverändertes Speichern darf das Datum nicht duplizieren.
+        assertEquals("2026-07-08_19-30_BoR",
+            withTitle("2026-07-08_19-30_BoR", "2026-07-08_19-30_BoR"))
+        assertEquals("2026-07-08_19-30_BoR_Neu",
+            withTitle("2026-07-08_19-30_BoR", "2026-07-08_19-30_BoR_Neu"))
+        assertEquals("2026-07-08_19-30_BoR_Neu",
+            withTitle("2026-07-08_19-30_BoR_Session 43", "2026-07-08_19-30_BoR_Neu"))
+    }
+
+    @Test
     fun borMarkerNeedsBoundary() {
         assertEquals(null, titlePartOf("my_BoRing_song"))
         assertEquals("mix", titlePartOf("2026-07-08_19-30_BoR_mix"))
