@@ -232,8 +232,8 @@ fun IdleWaveformCard(modifier: Modifier = Modifier) {
             .border(1.dp, Brush.linearGradient(listOf(
                 Bor.waveCold.copy(alpha = 0.7f), Bor.violet.copy(alpha = 0.7f))), shape),
     ) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp).align(Alignment.BottomCenter)
-            .padding(bottom = 22.dp).padding(horizontal = 18.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(110.dp).align(Alignment.Center)
+            .padding(horizontal = 18.dp)) {
             val bars = 64
             val step = size.width / bars
             val midY = size.height / 2f

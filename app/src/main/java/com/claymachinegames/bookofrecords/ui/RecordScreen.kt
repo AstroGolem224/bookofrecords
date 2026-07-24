@@ -97,10 +97,6 @@ fun RecordScreen(
                 }
                 Spacer(Modifier.height(28.dp))
                 IdleWaveformCard()
-                Spacer(Modifier.weight(0.5f))
-                Text("00:00:00", color = Bor.textPrimary.copy(alpha = 0.85f),
-                    fontFamily = FontFamily.Monospace, fontSize = 52.sp,
-                    letterSpacing = 2.sp)
                 if (!hasAudioPermission) {
                     Spacer(Modifier.height(10.dp))
                     Text("Mikrofon-Berechtigung fehlt", color = Bor.accent, fontSize = 13.sp)
@@ -110,7 +106,8 @@ fun RecordScreen(
                 Row(verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        GlassActionButton("BIBLIOTHEK", onClick = onOpenLibrary) { LibraryIcon() }
+                        GlassActionButton("BIBLIOTHEK", onClick = onOpenLibrary,
+                            modifier = Modifier.width(118.dp)) { LibraryIcon() }
                     }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         IconButton(
@@ -125,7 +122,8 @@ fun RecordScreen(
                         }
                     }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        GlassActionButton("HIDE", onClick = onHide) { HideIcon() }
+                        GlassActionButton("HIDE", onClick = onHide,
+                            modifier = Modifier.width(118.dp)) { HideIcon() }
                     }
                 }
                 Spacer(Modifier.height(6.dp))
