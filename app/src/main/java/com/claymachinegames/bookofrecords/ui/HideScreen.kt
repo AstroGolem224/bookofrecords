@@ -70,18 +70,21 @@ fun HideScreen(onExit: () -> Unit) {
     ) {
         Text(clock, color = Bor.textMuted, fontFamily = FontFamily.Monospace, fontSize = 40.sp,
             modifier = Modifier.align(Alignment.Center))
-        Box(
-            Modifier.align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(bottom = 24.dp)
-                .size(6.dp)
-                .alpha(0.35f)
-                .background(
-                    // bewusst rot statt Theme-Akzent: Hide-Screen ist vom
-                    // Amber/Petrol-Schema ausgenommen, Punkt = klassisches REC-Signal
-                    if (recording?.paused == true) Bor.textMuted else Color(0xFFCC3B31),
-                    CircleShape,
-                ),
-        )
+        // Punkt nur solange tatsächlich aufgenommen wird (Idle-Hide: gar kein Punkt)
+        if (recording != null) {
+            Box(
+                Modifier.align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(bottom = 24.dp)
+                    .size(6.dp)
+                    .alpha(0.35f)
+                    .background(
+                        // bewusst rot statt Theme-Akzent: Hide-Screen ist vom
+                        // Amber/Petrol-Schema ausgenommen, Punkt = klassisches REC-Signal
+                        if (recording.paused) Bor.textMuted else Color(0xFFCC3B31),
+                        CircleShape,
+                    ),
+            )
+        }
     }
 }
